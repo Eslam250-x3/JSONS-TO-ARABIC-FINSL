@@ -572,8 +572,12 @@
                 const placeholders = {};
                 let idx = 0;
                 const patterns = [
-                    /```[\s\S]*?```/g, /`[^`]*`/g, /\$\$[\s\S]*?\$\$/g, /\$[^$]*\$/g, /\\KATEX_INLINE_OPEN[^KATEX_INLINE_CLOSE]*\\KATEX_INLINE_CLOSE/g, /\\```math
-[^```]*\\```/g, /https?:\/\/\S+/g
+                    /```[\s\S]*?```/g,
+                    /`[^`]*`/g,
+                    /\$\$[\s\S]*?\$\$/g,
+                    /\$[^$]*\$/g,
+                    /\\KATEX_INLINE_OPEN[^KATEX_INLINE_CLOSE]*\\KATEX_INLINE_CLOSE/g,
+                    /https?:\/\/\S+/g
                 ];
                 let protectedText = text || '';
                 for (const re of patterns) {
@@ -632,7 +636,7 @@
                 },
                 checkSeparator(dstText, sep) {
                     if (!dstText) return [];
-                    const want = (dstText.match(new RegExp(sep.replace(/[.*+?^${}()|[```\```/g, '\\$&'), 'g')) || []).length;
+                    const want = (dstText.match(new RegExp(sep.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g')) || []).length;
                     const legacy = (dstText.match(/<SEP>/g) || []).length;
                     if (legacy > 0 && want === 0) return ['تحذير: لم يُحفظ الفاصل <SEP> كما هو.'];
                     return [];
@@ -1105,7 +1109,9 @@ Return ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}`;
                 const response = await fetch(apiUrl, {
-                    method: 'POST, headers: { 'Content-Type': 'application/json' }, signal,
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal,
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }], generationConfig: { response_mime_type: "application/json" } })
                 });
                 if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`Gemini API Error: ${err?.error?.message || response.statusText}`); }
