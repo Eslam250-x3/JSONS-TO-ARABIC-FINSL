@@ -1042,11 +1042,7 @@
 
             async translateItemsBatch(items, apiKeyOrUrl, provider, localModelName = '', systemPrompt = '') {
                 const CONTEXT_SEPARATOR = TranslatorApp.constants.CONTEXT_SEPARATOR;
-                const userInstruction = `You will receive a JSON object with an array "items": [{"id": number, "text": string}].
-- If "text" contains the exact separator "${CONTEXT_SEPARATOR}", translate each segment to Arabic and preserve the separator unchanged.
-- Preserve any HTML/LaTeX markup exactly.
-- Do NOT modify placeholders of the form __LOCK_n__ or __GLOSSARY_n__.
-Return ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]}.`;
+                const userInstruction = `Translate all provided text to Modern Standard Arabic. Preserve HTML/LaTeX and placeholders.\nYou will receive a JSON object with an array "items": [{"id": number, "text": string}].\n- If "text" contains the exact separator "${CONTEXT_SEPARATOR}", translate each segment to Arabic and preserve the separator unchanged.\n- Preserve any HTML/LaTeX markup exactly.\n- Do NOT modify placeholders of the form __LOCK_n__ or __GLOSSARY_n__.\nReturn ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]}.`;
                 const payload = { items };
                 const signal = this.abortController?.signal;
 
