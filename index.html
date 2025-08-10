@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مترجم الأسئلة المحترف</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Quill.js Editor -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <!-- DOMPurify -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --text-color: #1f2937;
+            --card-bg: #ffffff;
+            --card-border: #e5e7eb;
+            --input-bg: #ffffff;
+            --input-border: #d1d5db;
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --secondary-text: #6b7280;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --highlight-bg: #fef9c3;
+        }
+        [data-theme="dark"] {
+            --bg-color: #111827;
+            --text-color: #f9fafb;
+            --card-bg: #1f2937;
+            --card-border: #374151;
+            --input-bg: #374151;
+            --input-border: #4b5563;
+            --primary-color: #6366f1;
+            --primary-hover: #818cf8;
+            --secondary-text: #9ca3af;
+            --highlight-bg: #4d4318;
+        }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }
+        .main-card, .preview-card { background-color: var(--card-bg); border: 1px solid var(--card-border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        input, select, textarea { background-color: var(--input-bg); border: 1px solid var(--input-border); }
+        .dragover { border-color: var(--primary-color); background-color: color-mix(in srgb, var(--primary-color) 10%, var(--bg-color)); }
+        .api-selector input[type="radio"]:checked + label { border-color: var(--primary-color); background-color: color-mix(in srgb, var(--primary-color) 15%, var(--card-bg)); color: var(--primary-color); }
+        .ql-editor { min-height: 80px; background-color: var(--input-bg); color: var(--text-color); font-family: 'Cairo', sans-serif; direction: rtl; text-align: right; }
+        .ql-toolbar { background-color: color-mix(in srgb, var(--card-border) 50%, var(--card-bg)); border-top-left-radius: 0.5rem; border-top-right-radius: 0.5rem; border-bottom: 1px solid var(--card-border) !important; }
+        .ql-container { border-bottom-left-radius: 0.5rem; border-bottom-right-radius: 0.5rem; }
+        .ql-snow .ql-stroke { stroke: var(--text-color); }
+        .ql-snow .ql-picker-label { color: var(--text-color); }
+        .alert { transition: all 0.5s ease-in-out; opacity: 1; transform: translateX(0); }
+        .alert.fade-out { opacity: 0; transform: translateX(100%); }
+        .search-highlight, mark.search-highlight { background-color: var(--highlight-bg); color: var(--text-color); border-radius: 3px; padding: 0 2px; }
+        @media (max-width: 768px) { .comparison-content { grid-template-columns: 1fr; } }
+        #saveIndicator { font-size: 0.85rem; color: var(--secondary-text); }
+        #saveIndicator.saved { color: var(--success-color); }
+    </style>
+</head>
+<body class="text-gray-800">
+    <div id="alertContainer" class="fixed top-0 right-0 p-4 w-full max-w-md z-50 space-y-3"></div>
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-4xl md:text-5xl font-bold" style="color: var(--primary-color);">🌍 مترجم الأسئلة المحترف</h1>
+            <div class="flex items-center gap-4">
+                <span id="saveIndicator" aria-live="polite">—</span>
+                <button id="theme-toggle" class="text-2xl">☀️</button>
+                <button id="newSessionBtn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition">بدء جلسة جديدة</button>
+            </div>
+        </div>
+        <p class="mt-2 mb-8 text-center text-lg" style="color: var(--secondary-text);">ترجمة ملفات JSON، مع المعاينة والتعديل، التحليلات، ودعم السمات.</p>
+        
+        <div id="setupSection" class="main-card p-6 rounded-2xl shadow-lg mb-6">
+            <h3 class="text-2xl font-bold mb-4 border-b-2 pb-2" style="color: var(--primary-color); border-color: var(--primary-color-light);">الخطوة 1: الإعدادات ورفع الملفات</h3>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <div class="mb-6">
+                        <label class="block mb-2 font-semibold">اختر مُزوّد الخدمة:</label>
+                        <div class="api-selector grid grid-cols-3 gap-4">
+                            <div>
+                                <input type="radio" id="geminiProvider" name="apiProvider" value="gemini" class="hidden" checked>
+                                <label for="geminiProvider" class="block text-center p-4 border-2 rounded-lg cursor-pointer transition"><span class="font-bold">🤖 Gemini</span></label>
+                            </div>
+                            <div>
+                                <input type="radio" id="chatgptProvider" name="apiProvider" value="chatgpt" class="hidden">
+                                <label for="chatgptProvider" class="block text-center p-4 border-2 rounded-lg cursor-pointer transition"><span class="font-bold">💬 ChatGPT</span></label>
+                            </div>
+                            <div>
+                                <input type="radio" id="localModelProvider" name="apiProvider" value="local" class="hidden">
+                                <label for="localModelProvider" class="block text-center p-4 border-2 rounded-lg cursor-pointer transition"><span class="font-bold">🖥️ نموذج محلي</span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="geminiKeyGroup" class="mb-6">
+                        <label for="geminiKey" class="block mb-2 font-semibold">مفتاح Gemini API:</label>
+                        <input type="password" id="geminiKey" placeholder="يبدأ بـ AIza..." class="w-full p-3 rounded-lg focus:ring-2 transition" style="border-color: var(--input-border);">
+                    </div>
+                    <div id="chatgptKeyGroup" class="mb-6 hidden">
+                        <label for="chatgptKey" class="block mb-2 font-semibold">مفتاح OpenAI API:</label>
+                        <input type="password" id="chatgptKey" placeholder="يبدأ بـ sk-..." class="w-full p-3 rounded-lg focus:ring-2 transition" style="border-color: var(--input-border);">
+                    </div>
+                    <div id="localModelGroup" class="mb-6 hidden">
+                        <label for="localModelUrl" class="block mb-2 font-semibold">عنوان URL لخادم Ollama:</label>
+                        <input type="text" id="localModelUrl" placeholder="http://localhost:11434/api/generate" class="w-full p-3 rounded-lg focus:ring-2 transition mb-2" style="border-color: var(--input-border);">
+                        <label for="localModelName" class="block mb-2 font-semibold">اسم النموذج (مثال: gemma:7b):</label>
+                        <input type="text" id="localModelName" placeholder="gemma:7b" class="w-full p-3 rounded-lg focus:ring-2 transition" style="border-color: var(--input-border);">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="inline-flex items-center gap-2">
+                            <input id="ephemeralKeysCheckbox" type="checkbox" class="h-4 w-4 rounded focus:ring-2" style="color: var(--primary-color);">
+                            <span class="text-sm font-medium">عدم حفظ مفاتيح API محليًا (جلسة مؤقتة فقط)</span>
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="inline-flex items-center gap-2">
+                            <input id="useTmCheckbox" type="checkbox" class="h-4 w-4 rounded focus:ring-2" checked style="color: var(--primary-color);">
+                            <span class="text-sm font-medium">استخدام ذاكرة الترجمة (TM)</span>
+                        </label>
+                    </div>
+                    <div class="mb-6">
+                        <label class="inline-flex items-center gap-2">
+                            <input id="useProofreadCheckbox" type="checkbox" class="h-4 w-4 rounded focus:ring-2" style="color: var(--primary-color);">
+                            <span class="text-sm font-medium">تفعيل التدقيق اللغوي الآلي بعد الترجمة</span>
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-6 p-3 rounded-lg" style="background-color: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));">
+                        <button id="manageSubjectsBtn" type="button" class="font-semibold" style="color: var(--primary-color);">📚 إدارة المواد والصفوف</button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-6 p-3 rounded-lg" style="background-color: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));">
+                        <button id="manageGlossaryBtn" type="button" class="font-semibold" style="color: var(--primary-color);">📖 إدارة القاموس المخصص</button>
+                        <div class="flex items-center">
+                            <input id="useGlossaryCheckbox" type="checkbox" class="h-4 w-4 rounded focus:ring-2" style="color: var(--primary-color);">
+                            <label for="useGlossaryCheckbox" class="mr-2 text-sm font-medium">استخدام القاموس</label>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));">
+                        <button id="manageIdsBtn" type="button" class="font-semibold" style="color: var(--primary-color);">🆔 إدارة معرفات الأسئلة (mapped_id)</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="mb-4">
+                        <label class="block mb-2 font-semibold">ملفات الأسئلة (JSON):</label>
+                        <div id="fileUpload" class="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition" style="border-color: var(--input-border);">
+                            <div style="color: var(--primary-color);" class="text-4xl mb-2">📤</div>
+                            <p class="font-semibold">اسحب وأفلت الملفات هنا أو انقر للاختيار</p>
+                            <p class="text-sm mt-1" style="color: var(--secondary-text);">يجب أن تكون الملفات بصيغة JSON</p>
+                            <input type="file" id="fileInput" multiple accept=".json" class="hidden">
+                        </div>
+                    </div>
+                    <div id="fileList" class="space-y-2 max-h-40 overflow-y-auto"></div>
+                </div>
+            </div>
+            
+            <button id="translateBtn" class="w-full text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-8" style="background-color: var(--primary-color);">
+                ترجمة الملفات (Ctrl + Enter)
+            </button>
+        </div>
+
+        <div id="progressContainer" class="hidden main-card p-6 rounded-2xl shadow-lg mb-6 text-center">
+            <div class="w-16 h-16 border-4 border-dashed rounded-full animate-spin mx-auto" style="border-color: var(--primary-color); border-top-color: transparent;"></div>
+            <p id="progressText" class="mt-4 text-lg font-semibold">جاري الترجمة...</p>
+            <div class="mt-3">
+                <button id="cancelTranslationBtn" class="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600">إلغاء</button>
+            </div>
+        </div>
+        
+        <div id="analyticsSection" class="hidden main-card p-6 rounded-2xl shadow-lg mb-6">
+            <h3 class="text-2xl font-bold mb-4" style="color: var(--primary-color);">📊 تحليل الترجمة</h3>
+            <div id="statsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center"></div>
+        </div>
+
+        <div id="previewSection" class="hidden">
+            <div class="main-card p-4 rounded-2xl shadow-lg mb-6">
+                <div class="flex flex-wrap gap-4 items-center justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold" style="color: var(--success-color);">الخطوة 2: معاينة وتعديل الترجمة</h3>
+                        <p class="mt-1" style="color: var(--secondary-text);">راجع التراجم، عدّلها، وابحث فيها.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="undoBtn" disabled class="px-3 py-2 rounded-lg disabled:opacity-50">↩️ تراجع</button>
+                        <button id="redoBtn" disabled class="px-3 py-2 rounded-lg disabled:opacity-50">↪️ إعادة</button>
+                    </div>
+                </div>
+                <div class="preview-controls my-4 p-4 rounded-lg" style="background-color: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <div class="flex-grow">
+                            <input type="text" id="searchPreview" placeholder="البحث في النص الأصلي..." class="w-full p-2 border rounded-lg">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="previewContainer" class="space-y-8"></div>
+
+            <div class="main-card mt-8 p-4 rounded-2xl shadow-lg flex items-center justify-center gap-4">
+                <label for="exportFormat" class="font-semibold">تنسيق التصدير:</label>
+                <select id="exportFormat" class="p-2 rounded-lg">
+                    <option value="json">JSON</option>
+                    <option value="csv">CSV</option>
+                </select>
+                <button id="exportBtn" class="text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105" style="background-color: var(--success-color);">
+                    تصدير الملفات المترجمة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Glossary Modal -->
+    <div id="glossaryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-2xl transform transition-all" role="dialog" aria-labelledby="glossaryTitle">
+            <div class="flex justify-between items-center">
+                <h3 id="glossaryTitle" class="text-2xl font-bold" style="color: var(--primary-color);">القاموس المخصص</h3>
+                <button id="closeGlossaryModalBtn" class="text-2xl hover:opacity-75" aria-label="إغلاق">&times;</button>
+            </div>
+            <p class="text-sm mt-1 mb-4" style="color: var(--secondary-text);">أضف المصطلحات وترجمتها المعتمدة لضمان الاتساق.</p>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button id="importGlossaryBtn" class="flex-1 px-4 py-2 text-white rounded-lg" style="background-color: var(--primary-color);">استيراد</button>
+                <button id="exportGlossaryBtn" class="flex-1 px-4 py-2 text-white rounded-lg" style="background-color: var(--success-color);">تصدير (CSV)</button>
+                <input type="file" id="glossaryFileInput" accept=".json,.csv" class="hidden">
+            </div>
+            <input type="text" id="glossarySearch" placeholder="البحث في القاموس..." class="w-full p-2 mb-4 border rounded-lg">
+
+            <div class="grid md:grid-cols-3 gap-4 mb-4">
+                <input type="text" id="glossaryTerm" placeholder="المصطلح الأصلي" class="md:col-span-1 block w-full p-2 border rounded-md shadow-sm">
+                <input type="text" id="glossaryTranslation" placeholder="الترجمة المعتمدة" class="md:col-span-1 block w-full p-2 border rounded-md shadow-sm">
+                <select id="glossaryCategory" class="md:col-span-1 block w-full p-2 border rounded-md shadow-sm">
+                    <option value="general">عام</option>
+                    <option value="technical">تقني</option>
+                    <option value="medical">طبي</option>
+                    <option value="legal">قانوني</option>
+                </select>
+            </div>
+            <button id="addGlossaryTermBtn" class="text-white px-4 py-2 rounded-lg w-full mb-4" style="background-color: var(--primary-color);">إضافة مصطلح</button>
+            <hr class="my-4" style="border-color: var(--card-border);">
+            <h4 class="text-lg font-semibold mb-2">المصطلحات المحفوظة</h4>
+            <div id="glossaryListContainer" class="max-h-60 overflow-y-auto p-2 rounded-md" style="background-color: var(--bg-color);"></div>
+        </div>
+    </div>
+    
+    <!-- Mapped IDs Modal -->
+    <div id="mappedIdsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-2xl transform transition-all" role="dialog" aria-labelledby="mappedIdsTitle">
+            <div class="flex justify-between items-center">
+                <h3 id="mappedIdsTitle" class="text-2xl font-bold" style="color: var(--primary-color);">إدارة معرفات الأسئلة (mapped_id)</h3>
+                <button id="closeMappedIdsModalBtn" class="text-2xl hover:opacity-75" aria-label="إغلاق">&times;</button>
+            </div>
+            <p class="text-sm mt-1 mb-4" style="color: var(--secondary-text);">أدخل عدد المعرفات المطلوبة ثم اضغط على الزر لجلبها تلقائياً، أو ألصقها يدوياً.</p>
+            <div class="flex gap-2 mb-4">
+                <input type="number" id="mappedIdsCount" placeholder="أدخل العدد" class="p-2 border rounded-lg w-1/3 text-center">
+                <button id="fetchMappedIdsBtn" class="flex-1 px-4 py-2 text-sm text-white rounded-lg" style="background-color: var(--primary-color);">جلب الأكواد من Nagwa</button>
+            </div>
+            <textarea id="mappedIdsInput" rows="5" class="w-full p-2 rounded-lg mb-4" placeholder='["...","..."]'></textarea>
+            <div class="flex items-center">
+                <input id="useMappedIdsCheckbox" type="checkbox" class="h-4 w-4 rounded focus:ring-2" style="color: var(--primary-color);">
+                <label for="useMappedIdsCheckbox" class="mr-2 text-sm font-medium">تفعيل استبدال المعرفات عند التصدير</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subjects Modal -->
+    <div id="subjectsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-3xl transform transition-all" role="dialog" aria-labelledby="subjectsTitle">
+            <div class="flex justify-between items-center">
+                <h3 id="subjectsTitle" class="text-2xl font-bold" style="color: var(--primary-color);">إدارة المواد والصفوف</h3>
+                <button id="closeSubjectsModalBtn" class="text-2xl hover:opacity-75" aria-label="إغلاق">&times;</button>
+            </div>
+            <p class="text-sm mt-1 mb-4" style="color: var(--secondary-text);">اختر المادة والصف لتطبيق تعليمات ترجمة مخصصة.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <select id="subjectSelect" class="p-2 border rounded-lg w-full"></select>
+                <select id="gradeSelect" class="p-2 border rounded-lg w-full"></select>
+            </div>
+            <h4 class="text-lg font-semibold mb-2">معاينة التعليمات (البرومبت)</h4>
+            <textarea id="promptPreview" rows="8" class="w-full p-2 rounded-lg mb-4" readonly></textarea>
+            <button id="applyPromptBtn" class="w-full text-white font-bold py-2 px-4 rounded-lg" style="background-color: var(--success-color);">تطبيق وحفظ</button>
+        </div>
+    </div>
+
+    <script>
+    const GOOGLE_SHEET_ID = '16-ant77j9ckFE7y48mOaqmMvUQrx8ZzM-ksWHaFNSUU';
+
+    const TranslatorApp = {
+        constants: {
+            BATCH_SEPARATOR: "\\n|||---|||\\n",
+            CONTEXT_SEPARATOR: "\\n<SEP>\\n",
+            HISTORY_MAX: 20,
+            CHUNK_SIZE: 40
+        },
+
+        state: {
+            selectedFilesInfo: [],
+            originalJsonData: [],
+            translatedJsonData: [],
+            glossary: [],
+            activeScreen: 'setup',
+            translationCache: new Map(),
+            startTime: null,
+            hasUnsavedChanges: false,
+            selectedSubject: 'None',
+            selectedGrade: 'None',
+            fileStore: new Map(),
+            isTranslating: false
+        },
+
+        dom: {},
+
+        init() {
+            this.cacheDomElements();
+            this.bindEvents();
+            this.theme.init();
+            this.history.init();
+            this.subjects.init();
+            this.session.load();
+            this.shortcuts.init();
+            this.autoSave.init();
+            this.addBeforeUnloadGuard();
+        },
+
+        cacheDomElements() {
+            const ids = {
+                alertContainer: 'alertContainer', newSessionBtn: 'newSessionBtn',
+                fileUpload: 'fileUpload', fileInput: 'fileInput', fileList: 'fileList',
+                translateBtn: 'translateBtn', geminiKeyInput: 'geminiKey', chatgptKeyInput: 'chatgptKey',
+                geminiKeyGroup: 'geminiKeyGroup', chatgptKeyGroup: 'chatgptKeyGroup',
+                localModelGroup: 'localModelGroup', localModelUrl: 'localModelUrl', localModelName: 'localModelName',
+                setupSection: 'setupSection', progressContainer: 'progressContainer', progressText: 'progressText',
+                previewSection: 'previewSection', previewContainer: 'previewContainer', exportBtn: 'exportBtn',
+                manageGlossaryBtn: 'manageGlossaryBtn', glossaryModal: 'glossaryModal',
+                closeGlossaryModalBtn: 'closeGlossaryModalBtn', addGlossaryTermBtn: 'addGlossaryTermBtn',
+                glossaryTermInput: 'glossaryTerm', glossaryTranslationInput: 'glossaryTranslation',
+                glossaryListContainer: 'glossaryListContainer', useGlossaryCheckbox: 'useGlossaryCheckbox',
+                themeToggle: 'theme-toggle', analyticsSection: 'analyticsSection',
+                statsContainer: 'statsContainer', exportFormat: 'exportFormat',
+                searchPreview: 'searchPreview', undoBtn: 'undoBtn', redoBtn: 'redoBtn',
+                importGlossaryBtn: 'importGlossaryBtn', exportGlossaryBtn: 'exportGlossaryBtn',
+                glossaryFileInput: 'glossaryFileInput', glossarySearch: 'glossarySearch',
+                glossaryCategory: 'glossaryCategory',
+                mappedIdsInput: 'mappedIdsInput', useMappedIdsCheckbox: 'useMappedIdsCheckbox',
+                manageIdsBtn: 'manageIdsBtn', mappedIdsModal: 'mappedIdsModal',
+                closeMappedIdsModalBtn: 'closeMappedIdsModalBtn',
+                mappedIdsCount: 'mappedIdsCount', fetchMappedIdsBtn: 'fetchMappedIdsBtn',
+                manageSubjectsBtn: 'manageSubjectsBtn', subjectsModal: 'subjectsModal',
+                closeSubjectsModalBtn: 'closeSubjectsModalBtn', subjectSelect: 'subjectSelect',
+                gradeSelect: 'gradeSelect', promptPreview: 'promptPreview', applyPromptBtn: 'applyPromptBtn',
+                cancelTranslationBtn: 'cancelTranslationBtn', saveIndicator: 'saveIndicator',
+                ephemeralKeysCheckbox: 'ephemeralKeysCheckbox',
+                useTmCheckbox: 'useTmCheckbox', useProofreadCheckbox: 'useProofreadCheckbox'
+            };
+            for (const k in ids) this.dom[k] = document.getElementById(ids[k]);
+            this.dom.apiProviderRadios = document.querySelectorAll('input[name="apiProvider"]');
+        },
+        
+        bindEvents() {
+            this.dom.newSessionBtn.addEventListener('click', this.session.clear.bind(this));
+            this.dom.apiProviderRadios.forEach(radio => radio.addEventListener('change', this.events.onApiProviderChange.bind(this)));
+            this.dom.fileUpload.addEventListener('click', () => this.dom.fileInput.click());
+            this.dom.fileUpload.addEventListener('dragover', this.events.onDragOver);
+            this.dom.fileUpload.addEventListener('dragleave', this.events.onDragLeave);
+            this.dom.fileUpload.addEventListener('drop', this.events.onFileDrop.bind(this));
+            this.dom.fileInput.addEventListener('change', this.events.onFileSelect.bind(this));
+            this.dom.translateBtn.addEventListener('click', this.startTranslationProcess.bind(this));
+            this.dom.cancelTranslationBtn.addEventListener('click', this.api.cancel.bind(this.api));
+            this.dom.exportBtn.addEventListener('click', () => this.export.exportAs(this.dom.exportFormat.value));
+            this.dom.geminiKeyInput.addEventListener('input', () => this.state.hasUnsavedChanges = true);
+            this.dom.chatgptKeyInput.addEventListener('input', () => this.state.hasUnsavedChanges = true);
+            this.dom.localModelUrl.addEventListener('input', () => this.state.hasUnsavedChanges = true);
+            this.dom.localModelName.addEventListener('input', () => this.state.hasUnsavedChanges = true);
+            this.dom.themeToggle.addEventListener('click', this.theme.toggle.bind(this));
+            this.dom.mappedIdsInput.addEventListener('input', () => this.state.hasUnsavedChanges = true);
+            this.dom.useMappedIdsCheckbox.addEventListener('change', () => this.state.hasUnsavedChanges = true);
+            this.dom.ephemeralKeysCheckbox.addEventListener('change', () => this.state.hasUnsavedChanges = true);
+            this.dom.useTmCheckbox.addEventListener('change', () => this.state.hasUnsavedChanges = true);
+            this.dom.useProofreadCheckbox.addEventListener('change', () => this.state.hasUnsavedChanges = true);
+            
+            this.dom.searchPreview.addEventListener('input', this.preview.filter.bind(this.preview));
+            this.dom.undoBtn.addEventListener('click', this.history.undo.bind(this.history));
+            this.dom.redoBtn.addEventListener('click', this.history.redo.bind(this.history));
+
+            this.dom.manageGlossaryBtn.addEventListener('click', () => this.ui.showGlossaryModal(true));
+            this.dom.closeGlossaryModalBtn.addEventListener('click', () => this.ui.showGlossaryModal(false));
+            this.dom.addGlossaryTermBtn.addEventListener('click', this.glossary.add.bind(this.glossary));
+            this.dom.exportGlossaryBtn.addEventListener('click', this.glossary.export.bind(this.glossary));
+            this.dom.importGlossaryBtn.addEventListener('click', () => this.dom.glossaryFileInput.click());
+            this.dom.glossaryFileInput.addEventListener('change', (e) => this.glossary.import(e.target.files[0]));
+            this.dom.glossarySearch.addEventListener('input', (e) => this.glossary.filter(e.target.value));
+            
+            this.dom.manageIdsBtn.addEventListener('click', () => this.ui.showMappedIdsModal(true));
+            this.dom.closeMappedIdsModalBtn.addEventListener('click', () => this.ui.showMappedIdsModal(false));
+            this.dom.fetchMappedIdsBtn.addEventListener('click', this.mappedIds.fetch.bind(this.mappedIds));
+
+            this.dom.manageSubjectsBtn.addEventListener('click', () => this.ui.showSubjectsModal(true));
+            this.dom.closeSubjectsModalBtn.addEventListener('click', () => this.ui.showSubjectsModal(false));
+            this.dom.subjectSelect.addEventListener('change', this.subjects.onSubjectChange.bind(this.subjects));
+            this.dom.gradeSelect.addEventListener('change', this.subjects.onGradeChange.bind(this.subjects));
+            this.dom.applyPromptBtn.addEventListener('click', this.subjects.apply.bind(this.subjects));
+        },
+        
+        events: {
+            onApiProviderChange(e) {
+                const provider = e.target.value;
+                TranslatorApp.dom.geminiKeyGroup.classList.toggle('hidden', provider !== 'gemini');
+                TranslatorApp.dom.chatgptKeyGroup.classList.toggle('hidden', provider !== 'chatgpt');
+                TranslatorApp.dom.localModelGroup.classList.toggle('hidden', provider !== 'local');
+                TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); },
+            onDragLeave(e) { e.preventDefault(); e.currentTarget.classList.remove('dragover'); },
+            onFileDrop(e) { e.preventDefault(); TranslatorApp.dom.fileUpload.classList.remove('dragover'); TranslatorApp.fileHandler.addFiles(e.dataTransfer.files); },
+            onFileSelect(e) { TranslatorApp.fileHandler.addFiles(e.target.files); }
+        },
+
+        theme: {
+            init() {
+                const savedTheme = localStorage.getItem('translatorTheme') || 'light';
+                this.set(savedTheme);
+            },
+            toggle() {
+                const current = document.documentElement.getAttribute('data-theme');
+                this.set(current === 'dark' ? 'light' : 'dark');
+            },
+            set(themeName) {
+                document.documentElement.setAttribute('data-theme', themeName);
+                localStorage.setItem('translatorTheme', themeName);
+                TranslatorApp.dom.themeToggle.textContent = themeName === 'dark' ? '☀️' : '🌙';
+            }
+        },
+
+        shortcuts: {
+            init() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key.toLowerCase()) {
+                            case 's': e.preventDefault(); TranslatorApp.session.save(); TranslatorApp.ui.setSaveIndicator('saved'); break;
+                            case 'o': e.preventDefault(); TranslatorApp.dom.fileInput.click(); break;
+                            case 'enter':
+                                if(TranslatorApp.state.activeScreen === 'setup' && !e.target.closest('.ql-editor')) {
+                                    e.preventDefault(); TranslatorApp.dom.translateBtn.click();
+                                } break;
+                            case 'z': e.preventDefault(); TranslatorApp.history.undo(); break;
+                            case 'y': e.preventDefault(); TranslatorApp.history.redo(); break;
+                        }
+                    }
+                });
+            }
+        },
+
+        addBeforeUnloadGuard() {
+            window.addEventListener('beforeunload', (e) => {
+                if (TranslatorApp.state.hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
+            });
+        },
+
+        utils: {
+            collectAllTextsFromFiles(filesArr) {
+                const bag = [];
+                filesArr.forEach(f => {
+                    const d = f.data || {};
+                    if (d.statement) bag.push(d.statement);
+                    (d.parts || []).forEach(p => {
+                        if (p.stem) bag.push(p.stem);
+                        if (p.answer) bag.push(p.answer);
+                        (p.choices || []).forEach(c => c?.html_content && bag.push(c.html_content));
+                    });
+                });
+                const toPlain = (html) => { const div = document.createElement('div'); div.innerHTML = html; return (div.textContent || div.innerText || '').trim(); };
+                return Array.from(new Set(bag.map(toPlain).filter(Boolean)));
+            },
+            escapeRegex(str) { return str.replace(/[-\/\\^$*+?.()|[```{}]/g, '\\$&'); }
+        },
+
+        remoteGlossary: {
+            map: {},
+            async fetchApproved(subject, texts) {
+                this.map = {};
+                if (!subject || subject === 'None') return this.map;
+                try {
+                    const tq = `select A,B where C = '${(subject || '').replace(/'/g, "\\'")}'`;
+                    const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?sheet=termbase&tqx=out:json&headers=1&tq=${encodeURIComponent(tq)}`;
+                    const res = await fetch(url, { cache: 'no-cache' });
+                    const raw = await res.text();
+                    const match = raw.match(/google\.visualization\.Query\.setResponseKATEX_INLINE_OPEN([\s\S]+)KATEX_INLINE_CLOSE;/);
+                    if (!match) throw new Error('تعذّر قراءة استجابة gviz.');
+                    const data = JSON.parse(match[1]);
+                    const rows = data.table?.rows || [];
+                    const allPairs = rows.map(r => ({
+                        term: (r.c?.[0]?.v || '').toString().trim(),
+                        translation: (r.c?.[1]?.v || '').toString().trim()
+                    })).filter(x => x.term && x.translation);
+
+                    const loweredTexts = Array.isArray(texts) ? texts.map(t => (t || '').toString().toLowerCase()) : [];
+                    const map = {};
+                    if (loweredTexts.length > 0) {
+                        allPairs.forEach(({ term, translation }) => {
+                            const tl = term.toLowerCase();
+                            if (loweredTexts.some(tx => tx.includes(tl))) map[term] = translation;
+                        });
+                    } else {
+                        allPairs.forEach(({ term, translation }) => { map[term] = translation; });
+                    }
+                    this.map = map;
+                    return this.map;
+                } catch (e) {
+                    console.warn('GVIZ fetch failed:', e);
+                    TranslatorApp.ui.showAlert('تعذّر جلب المصطلحات المعتمدة (سيتم الاستمرار بدونها).', 'info', 4000);
+                    this.map = {};
+                    return this.map;
+                }
+            },
+            applyWithPlaceholders(text) {
+                if (!text || !this.map || Object.keys(this.map).length === 0) {
+                    return { modifiedText: text, placeholders: {} };
+                }
+                let modifiedText = text;
+                const placeholders = {};
+                let i = 0;
+                const terms = Object.keys(this.map).filter(Boolean).sort((a, b) => b.length - a.length);
+                for (const term of terms) {
+                    const translation = this.map[term];
+                    if (!translation) continue;
+                    const esc = TranslatorApp.utils.escapeRegex(term.trim());
+                    const useWordBoundary = /^[A-Za-z0-9 _-]+$/.test(term);
+                    const re = new RegExp(useWordBoundary ? `\\b${esc}\\b` : esc, 'gi');
+                    if (re.test(modifiedText)) {
+                        const ph = `__GLOSSARY_${i++}__`;
+                        placeholders[ph] = translation;
+                        modifiedText = modifiedText.replace(re, ph);
+                    }
+                }
+                return { modifiedText, placeholders };
+            },
+            revertPlaceholders(text, placeholders) {
+                if (!placeholders || !text) return text;
+                let out = text;
+                for (const [ph, tr] of Object.entries(placeholders)) out = out.split(ph).join(tr);
+                return out;
+            }
+        },
+
+        security: {
+            SALT: "a-secure-static-salt-for-obfuscation",
+            encrypt(key) { try { return btoa(key + this.SALT); } catch { return ''; } },
+            decrypt(encryptedKey) { try { const decoded = atob(encryptedKey); return decoded.endsWith(this.SALT) ? decoded.slice(0, -this.SALT.length) : ''; } catch { return ''; } },
+            sanitize(html) {
+                if (typeof html !== 'string') return html;
+                if (window.DOMPurify) {
+                    return DOMPurify.sanitize(html, {
+                        ALLOWED_TAGS: ['b','i','u','em','strong','sub','sup','br','span','p','ul','ol','li','img','a','code','pre','table','tr','td','th','thead','tbody','math'],
+                        ALLOWED_ATTR: ['href','src','alt','title','class','style']
+                    });
+                }
+                return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+            }
+        },
+
+        // جودة و QA و Post-processing
+        quality: {
+            wantsArabicIndicDigits(subject, grade) {
+                if (subject === 'Mathematics' && ['Grades 1–3','Grades 8–12'].includes(grade)) return true;
+                if (subject === 'Science' && grade === 'Grade 9') return true;
+                return false;
+            },
+            protectSegments(text) {
+                const placeholders = {};
+                let idx = 0;
+                const patterns = [
+                    /```[\s\S]*?```/g, /`[^`]*`/g, /\$\$[\s\S]*?\$\$/g, /\$[^$]*\$/g, /\\KATEX_INLINE_OPEN[^KATEX_INLINE_CLOSE]*\\KATEX_INLINE_CLOSE/g, /\\```math
+[^```]*\\```/g, /https?:\/\/\S+/g
+                ];
+                let protectedText = text || '';
+                for (const re of patterns) {
+                    protectedText = protectedText.replace(re, (m) => { const ph = `__LOCK_${idx++}__`; placeholders[ph] = m; return ph; });
+                }
+                return { protectedText, placeholders };
+            },
+            restoreSegments(text, placeholders) {
+                if (!placeholders) return text;
+                let out = text || '';
+                for (const [ph, val] of Object.entries(placeholders)) out = out.split(ph).join(val);
+                return out;
+            },
+            convertDigits(str, toArabicIndic) {
+                const en = '0123456789'.split(''); const ar = '٠١٢٣٤٥٦٧٨٩'.split('');
+                if (toArabicIndic) return (str || '').replace(/[0-9]/g, ch => ar[+ch]);
+                return (str || '').replace(/[٠-٩]/g, ch => en[ar.indexOf(ch)]);
+            },
+            normalizeArabicPunct(str) {
+                return (str || '')
+                    .replace(/,/g, '،')
+                    .replace(/;/g, '؛')
+                    .replace(/\?/g, '؟')
+                    .replace(/["“”]/g, '»')
+                    .replace(/'/g, 'ʼ')
+                    .replace(/\s+([،؛؟])/g, '$1')
+                    .replace(/([،؛])(?=[^\s])/g, '$1 ')
+                    .replace(/\s+/g, ' ');
+            },
+            enforceUnits(str) {
+                const map = { cm:'سم', mm:'مم', km:'كم', m:'م', kg:'كجم', g:'جم', l:'ل', L:'ل', ml:'مل', s:'ث', min:'د', h:'س' };
+                return (str || '').replace(/(\d[0-9٠-٩.,]*)\s*(cm|mm|km|m|kg|g|l|L|ml|s|min|h)\b/g, (m, num, u) => `${num}\u00A0${map[u] || u}`);
+            },
+            postProcess(text, ctx = { subject:'None', grade:'None' }) {
+                let out = text || '';
+                const toArabic = this.wantsArabicIndicDigits(ctx.subject, ctx.grade);
+                out = this.convertDigits(out, toArabic);
+                out = this.enforceUnits(out);
+                out = this.normalizeArabicPunct(out);
+                out = out.replace(/»([^»«]+)»/g, '«$1»');
+                return out;
+            },
+            qa: {
+                extractPlain(html) { const div = document.createElement('div'); div.innerHTML = html || ''; return (div.textContent || div.innerText || '').trim(); },
+                unifyDigits(s) { const ar='٠١٢٣٤٥٦٧٨٩'; return (s||'').replace(/[٠-٩]/g, d => String(ar.indexOf(d))); },
+                extractNumbers(s) { return Array.from((s || '').matchAll(/[0-9٠-٩]+(?:[.,][0-9٠-٩]+)?/g)).map(m => m[0]); },
+                sameNumberSet(srcArr, dstArr) {
+                    const a = srcArr.map(this.unifyDigits).sort().join('|');
+                    const b = dstArr.map(this.unifyDigits).sort().join('|');
+                    return a === b;
+                },
+                checkNumbers(srcHtml, dstHtml) {
+                    const s = this.extractPlain(srcHtml); const d = this.extractPlain(dstHtml);
+                    const srcNums = this.extractNumbers(s); const dstNums = this.extractNumbers(d);
+                    return this.sameNumberSet(srcNums, dstNums) ? [] : [`تحذير: تغيرت/اختفت أرقام (${srcNums.join(',')}) → (${dstNums.join(',')}).`];
+                },
+                checkSeparator(dstText, sep) {
+                    if (!dstText) return [];
+                    const want = (dstText.match(new RegExp(sep.replace(/[.*+?^${}()|[```\```/g, '\\$&'), 'g')) || []).length;
+                    const legacy = (dstText.match(/<SEP>/g) || []).length;
+                    if (legacy > 0 && want === 0) return ['تحذير: لم يُحفظ الفاصل <SEP> كما هو.'];
+                    return [];
+                },
+                checkHtmlBalance(dstHtml) {
+                    const tags = ['b','i','u','strong','em','sub','sup','span','p','ul','ol','li'];
+                    const errs = [];
+                    tags.forEach(t => {
+                        const open = (dstHtml.match(new RegExp(`<${t}\\b`, 'gi')) || []).length;
+                        const close = (dstHtml.match(new RegExp(`</${t}>`, 'gi')) || []).length;
+                        if (open !== close) errs.push(`تحذير: الوسم <${t}> غير متوازن (${open}/${close}).`);
+                    });
+                    return errs;
+                }
+            }
+        },
+
+        tm: {
+            KEY: 'translatorTMv1',
+            getStore() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}'); } catch { return {}; } },
+            saveStore(obj) { localStorage.setItem(this.KEY, JSON.stringify(obj)); },
+            plain(html) { const div = document.createElement('div'); div.innerHTML = html || ''; return (div.textContent || div.innerText || '').trim().toLowerCase(); },
+            key(text, ctx) { return `${ctx.subject}||${ctx.grade}||${this.plain(text)}`; },
+            get(text, ctx) { const store = this.getStore(); return store[this.key(text, ctx)] || null; },
+            put(text, ctx, translated) {
+                const store = this.getStore();
+                const k = this.key(text, ctx);
+                store[k] = translated;
+                // بسيط: بدون حد أقصى – يمكن لاحقًا إضافة LRU
+                this.saveStore(store);
+            }
+        },
+
+        session: {
+            save() {
+                const ephemeral = TranslatorApp.dom.ephemeralKeysCheckbox.checked;
+                const sessionData = {
+                    apiKeys: ephemeral ? null : {
+                        gemini: TranslatorApp.security.encrypt(TranslatorApp.dom.geminiKeyInput.value),
+                        chatgpt: TranslatorApp.security.encrypt(TranslatorApp.dom.chatgptKeyInput.value),
+                    },
+                    localModelUrl: TranslatorApp.dom.localModelUrl.value,
+                    localModelName: TranslatorApp.dom.localModelName.value,
+                    selectedProvider: document.querySelector('input[name="apiProvider"]:checked').value,
+                    selectedFilesInfo: TranslatorApp.state.selectedFilesInfo,
+                    originalJsonData: TranslatorApp.state.originalJsonData,
+                    translatedJsonData: TranslatorApp.state.translatedJsonData,
+                    glossary: TranslatorApp.state.glossary,
+                    activeScreen: TranslatorApp.state.activeScreen,
+                    mappedIds: TranslatorApp.dom.mappedIdsInput.value,
+                    useMappedIds: TranslatorApp.dom.useMappedIdsCheckbox.checked,
+                    selectedSubject: TranslatorApp.state.selectedSubject,
+                    selectedGrade: TranslatorApp.state.selectedGrade,
+                    ephemeralKeys: ephemeral,
+                    useTM: TranslatorApp.dom.useTmCheckbox.checked,
+                    useProofread: TranslatorApp.dom.useProofreadCheckbox.checked
+                };
+                localStorage.setItem('translatorSession', JSON.stringify(sessionData));
+                if (ephemeral) {
+                    sessionStorage.setItem('translatorEphemeralKeys', JSON.stringify({
+                        gemini: TranslatorApp.security.encrypt(TranslatorApp.dom.geminiKeyInput.value),
+                        chatgpt: TranslatorApp.security.encrypt(TranslatorApp.dom.chatgptKeyInput.value)
+                    }));
+                } else {
+                    sessionStorage.removeItem('translatorEphemeralKeys');
+                }
+                TranslatorApp.state.hasUnsavedChanges = false;
+            },
+            load() {
+                const saved = localStorage.getItem('translatorSession');
+                if (!saved) return;
+                try {
+                    const s = JSON.parse(saved);
+                    TranslatorApp.dom.ephemeralKeysCheckbox.checked = !!s.ephemeralKeys;
+                    if (s.apiKeys && !s.ephemeralKeys) {
+                        TranslatorApp.dom.geminiKeyInput.value = TranslatorApp.security.decrypt(s.apiKeys?.gemini || '');
+                        TranslatorApp.dom.chatgptKeyInput.value = TranslatorApp.security.decrypt(s.apiKeys?.chatgpt || '');
+                    } else if (s.ephemeralKeys) {
+                        const sk = JSON.parse(sessionStorage.getItem('translatorEphemeralKeys') || '{}');
+                        TranslatorApp.dom.geminiKeyInput.value = TranslatorApp.security.decrypt(sk?.gemini || '');
+                        TranslatorApp.dom.chatgptKeyInput.value = TranslatorApp.security.decrypt(sk?.chatgpt || '');
+                    }
+                    TranslatorApp.dom.localModelUrl.value = s.localModelUrl || 'http://localhost:11434/api/generate';
+                    TranslatorApp.dom.localModelName.value = s.localModelName || 'gemma:7b';
+                    TranslatorApp.state.selectedFilesInfo = s.selectedFilesInfo || [];
+                    TranslatorApp.state.originalJsonData = s.originalJsonData || [];
+                    TranslatorApp.state.translatedJsonData = s.translatedJsonData || [];
+                    TranslatorApp.state.glossary = s.glossary || [];
+                    TranslatorApp.state.activeScreen = s.activeScreen || 'setup';
+                    TranslatorApp.dom.mappedIdsInput.value = s.mappedIds || '[]';
+                    TranslatorApp.dom.useMappedIdsCheckbox.checked = s.useMappedIds || false;
+                    TranslatorApp.state.selectedSubject = s.selectedSubject || 'None';
+                    TranslatorApp.state.selectedGrade = s.selectedGrade || 'None';
+                    TranslatorApp.dom.useTmCheckbox.checked = s.useTM ?? true;
+                    TranslatorApp.dom.useProofreadCheckbox.checked = s.useProofread ?? false;
+
+                    if (s.selectedProvider) {
+                        const radio = document.querySelector(`input[name="apiProvider"][value="${s.selectedProvider}"]`);
+                        if (radio) { radio.checked = true; TranslatorApp.events.onApiProviderChange({ target: { value: s.selectedProvider } }); }
+                    }
+                    TranslatorApp.ui.renderFileList();
+                    TranslatorApp.glossary.render();
+                    TranslatorApp.subjects.updateUI();
+                    if (TranslatorApp.state.activeScreen === 'preview' && TranslatorApp.state.translatedJsonData.length > 0) {
+                        TranslatorApp.ui.showScreen('preview');
+                        TranslatorApp.preview.render();
+                        const stats = TranslatorApp.statistics.calculate();
+                        TranslatorApp.ui.renderStatistics(stats);
+                        TranslatorApp.history.push(TranslatorApp.state.translatedJsonData);
+                    } else {
+                        TranslatorApp.ui.showScreen('setup');
+                    }
+                    TranslatorApp.ui.showAlert('تم استعادة الجلسة السابقة بنجاح.', 'success');
+                } catch (e) {
+                    console.error('خطأ في استعادة الجلسة:', e);
+                    TranslatorApp.ui.showAlert('حدث خطأ أثناء استعادة الجلسة السابقة.', 'error');
+                }
+            },
+            clear() {
+                localStorage.removeItem('translatorSession');
+                sessionStorage.removeItem('translatorEphemeralKeys');
+                location.reload();
+            }
+        },
+        
+        autoSave: {
+            init() {
+                setInterval(() => {
+                    if (TranslatorApp.state.hasUnsavedChanges) {
+                        TranslatorApp.session.save();
+                        TranslatorApp.ui.setSaveIndicator('saving');
+                        setTimeout(() => TranslatorApp.ui.setSaveIndicator('saved'), 400);
+                    }
+                }, 8000);
+            }
+        },
+
+        validation: {
+            validateJsonStructure(data, fileName) {
+                const requiredFields = ['statement', 'parts'];
+                const hasAllFields = requiredFields.every(field => data.hasOwnProperty(field));
+                if (!hasAllFields) throw new Error(`ملف ${fileName} يفتقد للحقول المطلوبة (statement, parts).`);
+                return true;
+            },
+            validateApiKey(key, provider) {
+                if (!key) return false;
+                if (provider === 'gemini') return key.startsWith('AIza') && key.length > 30;
+                if (provider === 'chatgpt') return key.startsWith('sk-') && key.length >= 20;
+                return false;
+            }
+        },
+
+        fileHandler: {
+            addFiles(files) {
+                const incoming = Array.from(files).filter(f => f && (f.type === 'application/json' || f.name.toLowerCase().endsWith('.json')));
+                incoming.forEach(file => {
+                    TranslatorApp.state.fileStore.set(file.name, file);
+                    if (!TranslatorApp.state.selectedFilesInfo.some(f => f.name === file.name)) {
+                        TranslatorApp.state.selectedFilesInfo.push({ name: file.name, size: file.size });
+                    } else {
+                        const idx = TranslatorApp.state.selectedFilesInfo.findIndex(f => f.name === file.name);
+                        if (idx > -1) TranslatorApp.state.selectedFilesInfo[idx].size = file.size;
+                    }
+                });
+                TranslatorApp.ui.renderFileList();
+                TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            removeFile(index) {
+                const info = TranslatorApp.state.selectedFilesInfo[index]; if (!info) return;
+                const name = info.name;
+                TranslatorApp.state.selectedFilesInfo.splice(index, 1);
+                if (TranslatorApp.state.fileStore.has(name)) TranslatorApp.state.fileStore.delete(name);
+                const origIdx = TranslatorApp.state.originalJsonData.findIndex(d => d.name === name);
+                if (origIdx > -1) TranslatorApp.state.originalJsonData.splice(origIdx, 1);
+                const transIdx = TranslatorApp.state.translatedJsonData.findIndex(d => d.name === name);
+                if (transIdx > -1) TranslatorApp.state.translatedJsonData.splice(transIdx, 1);
+                TranslatorApp.ui.renderFileList();
+                TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            async readFilesFromInput() {
+                if (TranslatorApp.state.selectedFilesInfo.length === 0) throw new Error("لا توجد ملفات محددة.");
+                TranslatorApp.state.originalJsonData = [];
+                const inputFiles = Array.from(TranslatorApp.dom.fileInput.files || []);
+                for (const { name } of TranslatorApp.state.selectedFilesInfo) {
+                    const file = TranslatorApp.state.fileStore.get(name) || inputFiles.find(f => f.name === name);
+                    if (!file) throw new Error(`لم يتم العثور على الملف ${name}. يرجى إعادة تحديده.`);
+                    const content = await file.text();
+                    const jsonData = JSON.parse(content);
+                    TranslatorApp.validation.validateJsonStructure(jsonData, name);
+                    TranslatorApp.state.originalJsonData.push({ name, data: jsonData });
+                }
+            }
+        },
+        
+        mappedIds: {
+            async fetch() {
+                const count = TranslatorApp.dom.mappedIdsCount.value;
+                if (!count || count <= 0) return TranslatorApp.ui.showAlert('الرجاء إدخال عدد صحيح.', 'error');
+                const url = `https://12digit.nagwa.com/get.bulk.codes/${count}/cps/cps.system/`;
+                TranslatorApp.ui.showAlert(`جاري جلب ${count} كود...`, 'info', 3000);
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`فشل الطلب. حالة الخادم: ${response.status}`);
+                    const data = await response.json();
+                    if (Array.isArray(data)) {
+                        TranslatorApp.dom.mappedIdsInput.value = JSON.stringify(data, null, 2);
+                        TranslatorApp.ui.showAlert('تم جلب الأكواد بنجاح.', 'success');
+                        TranslatorApp.state.hasUnsavedChanges = true;
+                    } else {
+                        throw new Error('البيانات ليست مصفوفة.');
+                    }
+                } catch (error) {
+                    console.error("Fetch Mapped IDs Error:", error);
+                    TranslatorApp.ui.showAlert(`فشل الجلب بسبب قيود CORS. سيتم فتح الرابط للنسخ اليدوي.`, 'error', 8000);
+                    window.open(url, '_blank');
+                }
+            }
+        },
+
+        glossary: {
+            add() {
+                const term = TranslatorApp.dom.glossaryTermInput.value.trim();
+                const translation = TranslatorApp.dom.glossaryTranslationInput.value.trim();
+                if (!term || !translation) return TranslatorApp.ui.showAlert('يرجى إدخال المصطلح وترجمته.', 'error');
+                if (TranslatorApp.state.glossary.some(e => e.term.toLowerCase() === term.toLowerCase())) return TranslatorApp.ui.showAlert('المصطلح موجود بالفعل.', 'error');
+                TranslatorApp.state.glossary.push({ term, translation, category: TranslatorApp.dom.glossaryCategory.value, dateAdded: new Date().toISOString() });
+                TranslatorApp.dom.glossaryTermInput.value = '';
+                TranslatorApp.dom.glossaryTranslationInput.value = '';
+                this.render();
+                TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            delete(index) { TranslatorApp.state.glossary.splice(index, 1); this.render(); TranslatorApp.state.hasUnsavedChanges = true; },
+            render(filteredList = null) { const list = filteredList || TranslatorApp.state.glossary; TranslatorApp.ui.renderGlossaryList(list); },
+            filter(searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const filtered = TranslatorApp.state.glossary.filter(entry => entry.term.toLowerCase().includes(term) || entry.translation.toLowerCase().includes(term));
+                this.render(filtered);
+            },
+            export() {
+                if (TranslatorApp.state.glossary.length === 0) return TranslatorApp.ui.showAlert('القاموس فارغ.', 'error');
+                const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+                let csvContent = '\uFEFF"term","translation"\r\n';
+                TranslatorApp.state.glossary.forEach(entry => { csvContent += `${escapeCSV(entry.term)},${escapeCSV(entry.translation)}\r\n`; });
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'translator_glossary.csv';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                TranslatorApp.ui.showAlert('تم تصدير القاموس بنجاح.', 'success');
+            },
+            async import(file) {
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    let imported = [];
+                    const normalizeHeader = (h) => (h || '').toString().trim().replace(/^"|"$/g, '').toLowerCase();
+                    const parseCsvLine = (line) => { const out = [], re = /("([^"]|"")*"|[^,]*)(,|$)/g; let m; while ((m = re.exec(line)) !== null) { let cell = (m[1] || '').replace(/^"|"$/g, '').replace(/""/g, '"'); out.push(cell); if (!m[3]) break; } return out; };
+                    const isCsv = file.name.toLowerCase().endsWith('.csv') || /,/.test(text.split(/\r?\n/)[0] || '');
+                    if (isCsv) {
+                        const lines = text.split(/\r?\n/).filter(l => l.trim()); if (lines.length < 2) throw new Error('CSV فارغ.');
+                        const headerCells = parseCsvLine(lines[0]).map(normalizeHeader);
+                        const termIdx = headerCells.findIndex(h => ['term','source term','مصطلح'].includes(h));
+                        const transIdx = headerCells.findIndex(h => ['translation','translated term','ترجمة'].includes(h));
+                        if (termIdx === -1 || transIdx === -1) throw new Error('CSV يجب أن يحتوي أعمدة term و translation.');
+                        imported = lines.slice(1).map(line => {
+                            const cells = parseCsvLine(line);
+                            const term = (cells[termIdx] || '').trim();
+                            const translation = (cells[transIdx] || '').trim();
+                            return { term, translation };
+                        }).filter(r => r.term && r.translation);
+                    } else {
+                        const raw = JSON.parse(text);
+                        if (!Array.isArray(raw)) throw new Error('JSON غير صالح.');
+                        imported = raw.map(row => {
+                            const term = (row.term || row['source term'] || row['مصطلح'] || '').toString().trim();
+                            const translation = (row.translation || row['translated term'] || row['ترجمة'] || '').toString().trim();
+                            return { term, translation };
+                        }).filter(r => r.term && r.translation);
+                    }
+                    const newEntries = imported.filter(newEntry => !TranslatorApp.state.glossary.some(existing => existing.term.toLowerCase().trim() === newEntry.term.toLowerCase().trim()))
+                                              .map(e => ({ term: e.term, translation: e.translation, category: 'general', dateAdded: new Date().toISOString() }));
+                    TranslatorApp.state.glossary = [...TranslatorApp.state.glossary, ...newEntries];
+                    this.render();
+                    TranslatorApp.state.hasUnsavedChanges = true;
+                    TranslatorApp.ui.showAlert(`تم استيراد ${newEntries.length} مصطلح.`, 'success');
+                } catch (e) {
+                    console.error(e);
+                    TranslatorApp.ui.showAlert('فشل استيراد القاموس.', 'error');
+                } finally { TranslatorApp.dom.glossaryFileInput.value = ''; }
+            }
+        },
+        
+        subjects: {
+            data: {
+                'None': { grades: ['None'], prompt: 'Translate to Arabic accurately. Preserve HTML/LaTeX and special placeholders (e.g., __LOCK_0__, __GLOSSARY_0__). If a text contains the separator \\n<SEP>\\n, translate each segment separately and preserve the separator exactly.' },
+                'Mathematics': { grades: ['Grades 1–3','Grades 4–7','Grades 8–12'], prompts: {
+                    'Grades 1–3': 'Task: Translate English Math questions for grades 1-3 into accurate, age-appropriate Arabic.\nRules:\n1) Use official MoE phrasing.\n2) Use Arabic-Indic numerals.\n3) Write equations in LaTeX. Transliterate variables to Arabic (س، ص، ع).\n4) Fractions as \\dfrac{البسط}{المقام}.\n5) If text contains \\n<SEP>\\n, translate each part and preserve separator.',
+                    'Grades 4–7': 'Task: Translate English Math questions for grades 4-7 into accurate Arabic.\nRules:\n1) Use official MoE phrasing.\n2) Use English numerals.\n3) Translate units to Arabic abbreviations (cm→سم).\n4) Fractions as \\dfrac{numerator}{denominator}.\n5) If text contains \\n<SEP>\\n, translate each part and preserve separator.',
+                    'Grades 8–12': 'Task: Translate English Math questions for grades 8-12 into accurate Arabic.\nRules:\n1) Use official MoE phrasing.\n2) Use Arabic-Indic numerals; transliterate variables to Arabic.\n3) Fractions as \\dfrac{البسط}{المقام}.\n4) If text contains \\n<SEP>\\n, translate each part and preserve separator.'
+                }},
+                'Physics': { grades: ['Grades 10–12'], prompts: {
+                    'Grades 10–12': 'Translate Physics questions.\nUse official MoE phrasing, English numerals and keep units (cm,m,kg) as abbreviations. Keep subscripts and variables exact. If text contains \\n<SEP>\\n, translate parts separately and preserve separator.'
+                }},
+                'Chemistry': { grades: ['Grades 10–12'], prompts: {
+                    'Grades 10–12': 'Translate Chemistry questions.\nUse English numerals; keep equations LTR; keep units in English abbreviations. If text contains \\n<SEP>\\n, preserve separator.'
+                }},
+                'Biology': { grades: ['Grades 10–12'], prompts: {
+                    'Grades 10–12': 'Translate Biology questions.\nUse English numerals; Arabic labels (أ، ب، ج); translate text within figures; preserve \\n<SEP>\\n.'
+                }},
+                'Science': { grades: ['Grades 4–8','Grade 9'], prompts: {
+                    'Grades 4–8': 'Translate Science (4–8).\nUse English numerals; Arabic labels; chemical symbols in English; preserve \\n<SEP>\\n.',
+                    'Grade 9': 'Translate Science (9).\nUse Arabic-Indic numerals; Arabic labels; preserve \\n<SEP>\\n.'
+                }},
+                'Integrated Science': { grades: ['Grades 10–12'], prompts: {
+                    'Grades 10–12': 'Translate Integrated Science.\nUse English numerals; Arabic labels; keep units; preserve \\n<SEP>\\n.'
+                }},
+                'ICT': { grades: ['Grade 4','Grade 5'], prompts: {
+                    'Grade 4': 'Translate ICT (Grade 4).\nUse Arabic-Indic numerals; product names bilingual; preserve \\n<SEP>\\n.',
+                    'Grade 5': 'Translate ICT (Grade 5).\nUse English numerals; Arabic labels; preserve \\n<SEP>\\n.'
+                }}
+            },
+            init() { this.populateSubjects(); this.updateUI(); },
+            populateSubjects() {
+                TranslatorApp.dom.subjectSelect.innerHTML = '';
+                Object.keys(this.data).forEach(subject => {
+                    const opt = document.createElement('option'); opt.value = subject; opt.textContent = subject;
+                    TranslatorApp.dom.subjectSelect.appendChild(opt);
+                });
+            },
+            populateGrades(subject) {
+                TranslatorApp.dom.gradeSelect.innerHTML = '';
+                const subjectData = this.data[subject];
+                if (subjectData && subjectData.grades) subjectData.grades.forEach(grade => {
+                    const opt = document.createElement('option'); opt.value = grade; opt.textContent = grade;
+                    TranslatorApp.dom.gradeSelect.appendChild(opt);
+                });
+            },
+            onSubjectChange() { const s = TranslatorApp.dom.subjectSelect.value; this.populateGrades(s); this.updatePromptPreview(); },
+            onGradeChange() { this.updatePromptPreview(); },
+            updatePromptPreview() { TranslatorApp.dom.promptPreview.value = this.buildSystemPrompt(); },
+            getCurrentPrompt() {
+                const subject = TranslatorApp.dom.subjectSelect.value;
+                const grade = TranslatorApp.dom.gradeSelect.value;
+                if (subject === 'None' || !this.data[subject]) return this.data['None'].prompt;
+                return this.data[subject].prompts?.[grade] || Object.values(this.data[subject].prompts)[0] || '';
+            },
+            buildSystemPrompt() {
+                const base = this.getCurrentPrompt();
+                const subject = TranslatorApp.dom.subjectSelect.value;
+                const grade = TranslatorApp.dom.gradeSelect.value;
+                const wantArabic = TranslatorApp.quality.wantsArabicIndicDigits(subject, grade);
+                const digitsRule = wantArabic ? 'Use Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩).' : 'Use English numerals (0123456789).';
+                const core = [
+                    'Core rules:',
+                    '- Do NOT add or remove content.',
+                    '- Preserve all HTML and LaTeX exactly as-is.',
+                    '- If present, keep placeholders __LOCK_n__ and __GLOSSARY_n__ unchanged.',
+                    `- ${digitsRule}`,
+                    `- If text contains the separator ${TranslatorApp.constants.CONTEXT_SEPARATOR}, translate each segment and preserve the separator exactly.`,
+                    '- Keep the order of choices unchanged.',
+                    '- Output in Arabic (MSA), formal tone.'
+                ].join('\n');
+                return `${base}\n\n${core}`;
+            },
+            async apply() {
+                TranslatorApp.state.selectedSubject = TranslatorApp.dom.subjectSelect.value;
+                TranslatorApp.state.selectedGrade = TranslatorApp.dom.gradeSelect.value;
+                TranslatorApp.state.hasUnsavedChanges = true;
+                TranslatorApp.ui.showSubjectsModal(false);
+                TranslatorApp.ui.showAlert(`تم تطبيق: ${TranslatorApp.state.selectedSubject} - ${TranslatorApp.state.selectedGrade}`, 'success');
+            },
+            updateUI() {
+                TranslatorApp.dom.subjectSelect.value = TranslatorApp.state.selectedSubject;
+                this.populateGrades(TranslatorApp.state.selectedSubject);
+                TranslatorApp.dom.gradeSelect.value = TranslatorApp.state.selectedGrade;
+                this.updatePromptPreview();
+            }
+        },
+
+        api: {
+            abortController: null,
+            createAbortController() { if (this.abortController) this.abortController.abort(); this.abortController = new AbortController(); return this.abortController; },
+            cancel() { if (this.abortController) { this.abortController.abort(); TranslatorApp.ui.showAlert('تم إلغاء عملية الترجمة.', 'info'); TranslatorApp.state.isTranslating = false; TranslatorApp.ui.showScreen('setup'); } },
+
+            async translateInChunks(jobs, apiKeyOrUrl, provider, localModelName = '', systemPrompt = '') {
+                const CHUNK_SIZE = TranslatorApp.constants.CHUNK_SIZE;
+                const total = jobs.length;
+                let done = 0;
+                jobs.forEach((job, idx) => job.uid = idx);
+
+                for (let i = 0; i < jobs.length; i += CHUNK_SIZE) {
+                    const chunk = jobs.slice(i, i + CHUNK_SIZE);
+                    const items = chunk.map(j => ({ id: j.uid, text: j.originalText }));
+                    TranslatorApp.ui.updateProgress(`جاري الترجمة... (${Math.min(done + items.length, total)}/${total})`);
+                    const outItems = await this.translateItemsBatch(items, apiKeyOrUrl, provider, localModelName, systemPrompt);
+                    outItems.forEach(obj => {
+                        const job = chunk.find(j => j.uid === obj.id);
+                        if (!job) return;
+                        TranslatorApp.state.translationCache.set(job.originalText, (obj.text || '').toString().trim());
+                    });
+                    done += items.length;
+                }
+            },
+
+            async translateItemsBatch(items, apiKeyOrUrl, provider, localModelName = '', systemPrompt = '') {
+                const CONTEXT_SEPARATOR = TranslatorApp.constants.CONTEXT_SEPARATOR;
+                const userInstruction = `You will receive a JSON object with an array "items": [{"id": number, "text": string}].
+- If "text" contains the exact separator "${CONTEXT_SEPARATOR}", translate each segment to Arabic and preserve the separator unchanged.
+- Preserve any HTML/LaTeX markup exactly.
+- Do NOT modify placeholders of the form __LOCK_n__ or __GLOSSARY_n__.
+Return ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]}.`;
+                const payload = { items };
+                const signal = this.abortController?.signal;
+
+                let responseText;
+                if (provider === 'gemini') responseText = await this.withGeminiJSON(systemPrompt, userInstruction, payload, apiKeyOrUrl, signal);
+                else if (provider === 'chatgpt') responseText = await this.withChatGPTJSON(systemPrompt, userInstruction, payload, apiKeyOrUrl, signal);
+                else responseText = await this.withLocalModelJSON(systemPrompt, userInstruction, payload, apiKeyOrUrl, localModelName, signal);
+
+                try {
+                    const data = JSON.parse(responseText);
+                    if (!data || !Array.isArray(data.items)) throw new Error('Invalid JSON structure from model.');
+                    return data.items.map(x => ({ id: x.id, text: x.text }));
+                } catch (e) {
+                    console.warn('JSON parse failed, falling back to delimiter mode.', e);
+                    const BATCH_SEPARATOR = TranslatorApp.constants.BATCH_SEPARATOR;
+                    const flat = items.map(it => `${it.id}:::${it.text}`).join(BATCH_SEPARATOR);
+                    const fallbackPrompt = `${userInstruction}\nNow process items separated by "${BATCH_SEPARATOR}". Each starts with "<id>:::". Return ONLY valid JSON as specified.\n\n${flat}`;
+                    let resp;
+                    if (provider === 'gemini') resp = await this.withGeminiText(systemPrompt, fallbackPrompt, apiKeyOrUrl, signal);
+                    else if (provider === 'chatgpt') resp = await this.withChatGPTText(systemPrompt, fallbackPrompt, apiKeyOrUrl, signal);
+                    else resp = await this.withLocalModelText(systemPrompt, fallbackPrompt, apiKeyOrUrl, localModelName, signal);
+                    const data2 = JSON.parse(resp);
+                    if (!data2 || !Array.isArray(data2.items)) throw new Error('Invalid JSON structure from model (fallback).');
+                    return data2.items.map(x => ({ id: x.id, text: x.text }));
+                }
+            },
+
+            async proofreadInChunks(items, apiKeyOrUrl, provider, localModelName = '') {
+                const CHUNK_SIZE = TranslatorApp.constants.CHUNK_SIZE;
+                const total = items.length;
+                let done = 0;
+                const allOut = [];
+                for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+                    const chunk = items.slice(i, i + CHUNK_SIZE);
+                    TranslatorApp.ui.updateProgress(`تدقيق لغوي... (${Math.min(done + chunk.length, total)}/${total})`);
+                    const out = await this.proofreadItemsBatch(chunk, apiKeyOrUrl, provider, localModelName);
+                    allOut.push(...out);
+                    done += chunk.length;
+                }
+                return allOut;
+            },
+
+            async proofreadItemsBatch(items, apiKeyOrUrl, provider, localModelName = '') {
+                const userInstruction = `You will receive JSON {"items":[{"id":number,"text":string}]}. Proofread Arabic grammar/style only.
+- Do not add/remove content.
+- Do not change digits, units, HTML, LaTeX, or any placeholders like __LOCK_n__ or __GLOSSARY_n__.
+- Return ONLY {"items":[{"id":number,"text":"polished"}]}.`;
+                const payload = { items };
+                const signal = this.abortController?.signal;
+                let responseText;
+                if (provider === 'gemini') responseText = await this.withGeminiJSON('', userInstruction, payload, apiKeyOrUrl, signal);
+                else if (provider === 'chatgpt') responseText = await this.withChatGPTJSON('', userInstruction, payload, apiKeyOrUrl, signal);
+                else responseText = await this.withLocalModelJSON('', userInstruction, payload, apiKeyOrUrl, localModelName, signal);
+
+                const data = JSON.parse(responseText);
+                return data.items;
+            },
+
+            async withGeminiJSON(systemPrompt, userInstruction, payload, apiKey, signal) {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }], generationConfig: { response_mime_type: "application/json" } })
+                });
+                if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`Gemini API Error: ${err?.error?.message || response.statusText}`); }
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            },
+            async withChatGPTJSON(systemPrompt, userInstruction, payload, apiKey, signal) {
+                const apiUrl = 'https://api.openai.com/v1/chat/completions';
+                const messages = [];
+                if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+                messages.push({ role: 'user', content: `${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}` });
+                const response = await fetch(apiUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
+                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2, response_format: { type: "json_object" } })
+                });
+                if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`ChatGPT API Error: ${err?.error?.message || response.statusText}`); }
+                const data = await response.json();
+                return data.choices?.[0]?.message?.content || '';
+            },
+            async withLocalModelJSON(systemPrompt, userInstruction, payload, url, modelName, signal) {
+                const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}\n\nReturn ONLY JSON.`;
+                const response = await fetch(url, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+                    body: JSON.stringify({ model: modelName, prompt: fullPrompt, system: '', stream: false })
+                });
+                if (!response.ok) throw new Error(`Local server error: ${response.status} ${response.statusText}`);
+                const data = await response.json();
+                return data.response || '';
+            },
+            async withGeminiText(systemPrompt, userPrompt, apiKey, signal) {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const fullPrompt = systemPrompt ? `${systemPrompt}\n\n---\n\n${userPrompt}` : userPrompt;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }) });
+                if (!response.ok) { const err = await response.json(); throw new Error(`Gemini API Error: ${err.error?.message || response.statusText}`); }
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            },
+            async withChatGPTText(systemPrompt, userPrompt, apiKey, signal) {
+                const apiUrl = 'https://api.openai.com/v1/chat/completions';
+                const messages = []; if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+                messages.push({ role: 'user', content: userPrompt });
+                const response = await fetch(apiUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
+                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2 })
+                });
+                if (!response.ok) { const err = await response.json(); throw new Error(`ChatGPT API Error: ${err.error?.message || response.statusText}`); }
+                const data = await response.json();
+                return data.choices?.[0]?.message?.content || '';
+            },
+            async withLocalModelText(systemPrompt, userPrompt, url, modelName, signal) {
+                const response = await fetch(url, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+                    body: JSON.stringify({ model: modelName, prompt: userPrompt, system: systemPrompt, stream: false })
+                });
+                if (!response.ok) throw new Error(`Local server error: ${response.status} ${response.statusText}`);
+                const data = await response.json();
+                return data.response || '';
+            },
+            // Legacy batch (with fixed split)
+            async translateWithRetry(texts, apiKeyOrUrl, provider, maxRetries = 3, localModelName = '', systemPrompt = '') {
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try { TranslatorApp.ui.updateProgress(`جاري الترجمة... (المحاولة ${attempt}/${maxRetries})`);
+                        return await this.translateBatch(texts, apiKeyOrUrl, provider, localModelName, systemPrompt);
+                    } catch (error) {
+                        if (attempt === maxRetries) throw error;
+                        await new Promise(resolve => setTimeout(resolve, 500 + Math.random()*1000*attempt));
+                    }
+                }
+            },
+            async translateBatch(texts, apiKeyOrUrl, provider, localModelName = '', systemPrompt = '') {
+                const BATCH_SEPARATOR = "\n|||---|||\n", CONTEXT_SEPARATOR = "\n<SEP>\n";
+                const userPrompt = `You will receive texts separated by "${BATCH_SEPARATOR}". Some contain "${CONTEXT_SEPARATOR}". Translate accordingly and preserve separators and placeholders. Keep HTML/LaTeX.\n\n${texts.join(BATCH_SEPARATOR)}`;
+                let responseText;
+                if (provider === 'gemini') responseText = await this.withGeminiText(systemPrompt, userPrompt, apiKeyOrUrl, this.abortController?.signal);
+                else if (provider === 'chatgpt') responseText = await this.withChatGPTText(systemPrompt, userPrompt, apiKeyOrUrl, this.abortController?.signal);
+                else responseText = await this.withLocalModelText(systemPrompt, userPrompt, apiKeyOrUrl, localModelName, this.abortController?.signal);
+                const translatedTexts = responseText.split(BATCH_SEPARATOR); // FIX: no trim
+                if (translatedTexts.length !== texts.length) throw new Error("حدث خطأ أثناء الترجمة المجمعة.");
+                return translatedTexts.map(t => t.trim());
+            }
+        },
+        
+        history: {
+            stack: [], currentIndex: -1, timeout: null,
+            init() { this.updateButtons(); },
+            push(state) {
+                const MAX_HISTORY = TranslatorApp.constants.HISTORY_MAX;
+                if (this.timeout) clearTimeout(this.timeout);
+                this.timeout = setTimeout(() => {
+                    this.stack = this.stack.slice(0, this.currentIndex + 1);
+                    const snapshot = (window.structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state)));
+                    this.stack.push(snapshot);
+                    if (this.stack.length > MAX_HISTORY) { this.stack.shift(); } else { this.currentIndex++; }
+                    this.updateButtons();
+                }, 400);
+            },
+            undo() { if (this.currentIndex > 0) { this.currentIndex--; this.restore(this.stack[this.currentIndex]); } },
+            redo() { if (this.currentIndex < this.stack.length - 1) { this.currentIndex++; this.restore(this.stack[this.currentIndex]); } },
+            restore(state) {
+                TranslatorApp.state.translatedJsonData = (window.structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state)));
+                TranslatorApp.preview.render(); this.updateButtons(); TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            updateButtons() {
+                TranslatorApp.dom.undoBtn.disabled = this.currentIndex <= 0;
+                TranslatorApp.dom.redoBtn.disabled = this.currentIndex >= this.stack.length - 1;
+            }
+        },
+
+        async startTranslationProcess() {
+            const apiProvider = document.querySelector('input[name="apiProvider"]:checked').value;
+            let apiKeyOrUrl; let localModelName;
+            if (apiProvider === 'gemini') {
+                apiKeyOrUrl = this.dom.geminiKeyInput.value.trim();
+                if (!this.validation.validateApiKey(apiKeyOrUrl, 'gemini')) return this.ui.showAlert(`مفتاح API لـ Gemini غير صالح.`, 'error');
+            } else if (apiProvider === 'chatgpt') {
+                apiKeyOrUrl = this.dom.chatgptKeyInput.value.trim();
+                if (!this.validation.validateApiKey(apiKeyOrUrl, 'chatgpt')) return this.ui.showAlert(`مفتاح API لـ ChatGPT غير صالح.`, 'error');
+            } else {
+                apiKeyOrUrl = this.dom.localModelUrl.value.trim();
+                localModelName = this.dom.localModelName.value.trim();
+                if (!apiKeyOrUrl || !localModelName) return this.ui.showAlert('أدخل URL واسم النموذج المحلي.', 'error');
+            }
+            if (this.state.selectedFilesInfo.length === 0) return this.ui.showAlert('اختر ملف JSON واحد على الأقل.', 'error');
+
+            this.ui.showScreen('progress');
+            this.dom.translateBtn.disabled = true;
+            this.state.translationCache.clear();
+            this.state.startTime = Date.now();
+            const aborter = this.api.createAbortController();
+            this.state.isTranslating = true;
+
+            try {
+                this.ui.updateProgress('جاري قراءة الملفات...');
+                await this.fileHandler.readFilesFromInput();
+                this.state.translatedJsonData = JSON.parse(JSON.stringify(this.state.originalJsonData));
+
+                // جمع النصوص + قاموس المادة
+                this.ui.updateProgress('جاري تحضير المصطلحات المعتمدة...');
+                const allTexts = this.utils.collectAllTextsFromFiles(this.state.originalJsonData);
+                const subject = this.state.selectedSubject;
+                const grade = this.state.selectedGrade;
+                const ctx = { subject, grade };
+
+                await this.remoteGlossary.fetchApproved(subject, allTexts);
+                // دمج القاموس المحلي إذا مُفعّل
+                if (this.dom.useGlossaryCheckbox.checked && this.state.glossary.length > 0) {
+                    const merged = { ...(this.remoteGlossary.map || {}) };
+                    this.state.glossary.forEach(e => { if (e.term && e.translation) merged[e.term] = e.translation; });
+                    this.remoteGlossary.map = merged;
+                }
+
+                // بناء مهام الترجمة (مع حماية المقاطع + placeholders + TM)
+                this.ui.updateProgress('جاري تجميع النصوص للترجمة...');
+                const translationJobs = [];
+                const SEP = this.constants.CONTEXT_SEPARATOR;
+
+                const applyGlossary = (txt) => this.remoteGlossary.applyWithPlaceholders(txt);
+
+                this.state.originalJsonData.forEach((file, fileIndex) => {
+                    if (file.data.statement) {
+                        const src = file.data.statement;
+                        const prot = this.quality.protectSegments(src);
+                        const gl = applyGlossary(prot.protectedText);
+                        translationJobs.push({
+                            type: 'single',
+                            originalText: gl.modifiedText,
+                            placeholders: { locks: prot.placeholders, glossary: gl.placeholders },
+                            pointer: { fileIndex, key: 'statement' },
+                            sourceRaw: src,
+                            tmKey: this.tm.key(src, ctx)
+                        });
+                    }
+                    file.data.parts?.forEach((part, partIndex) => {
+                        if (part.stem && part.choices && part.choices.length > 0) {
+                            const srcParts = [];
+                            const lockPlaceholders = [];
+                            const glossPlaceholders = [];
+                            const blockParts = [];
+
+                            const stemProt = this.quality.protectSegments(part.stem);
+                            const stemGl = applyGlossary(stemProt.protectedText);
+                            srcParts.push(part.stem);
+                            lockPlaceholders.push(stemProt.placeholders);
+                            glossPlaceholders.push(stemGl.placeholders);
+                            blockParts.push(stemGl.modifiedText);
+
+                            part.choices.forEach(choice => {
+                                const prot = this.quality.protectSegments(choice.html_content);
+                                const gl = applyGlossary(prot.protectedText);
+                                srcParts.push(choice.html_content);
+                                lockPlaceholders.push(prot.placeholders);
+                                glossPlaceholders.push(gl.placeholders);
+                                blockParts.push(gl.modifiedText);
+                            });
+
+                            translationJobs.push({
+                                type: 'block',
+                                originalText: blockParts.join(SEP),
+                                placeholders: { locks: lockPlaceholders, glossary: glossPlaceholders },
+                                pointer: { fileIndex, partIndex, numChoices: part.choices.length },
+                                sourceParts: srcParts,
+                                tmKey: this.tm.key(srcParts.join(SEP), ctx)
+                            });
+                        }
+
+                        if (part.stem && (!part.choices || part.choices.length === 0)) {
+                            const src = part.stem;
+                            const prot = this.quality.protectSegments(src);
+                            const gl = applyGlossary(prot.protectedText);
+                            translationJobs.push({
+                                type: 'single',
+                                originalText: gl.modifiedText,
+                                placeholders: { locks: prot.placeholders, glossary: gl.placeholders },
+                                pointer: { fileIndex, partIndex, key: 'stem' },
+                                sourceRaw: src,
+                                tmKey: this.tm.key(src, ctx)
+                            });
+                        }
+
+                        if (part.answer) {
+                            const src = part.answer;
+                            const prot = this.quality.protectSegments(src);
+                            const gl = applyGlossary(prot.protectedText);
+                            translationJobs.push({
+                                type: 'single',
+                                originalText: gl.modifiedText,
+                                placeholders: { locks: prot.placeholders, glossary: gl.placeholders },
+                                pointer: { fileIndex, partIndex, key: 'answer' },
+                                sourceRaw: src,
+                                tmKey: this.tm.key(src, ctx)
+                            });
+                        }
+                    });
+                });
+
+                // إزالة التكرارات + TM
+                const uniqueJobs = [];
+                const seen = new Set();
+                for (const job of translationJobs) {
+                    if (!seen.has(job.originalText)) {
+                        seen.add(job.originalText);
+                        uniqueJobs.push(job);
+                    }
+                }
+
+                this.ui.updateProgress(`تحضير ${uniqueJobs.length} نص فريد...`);
+
+                const useTM = this.dom.useTmCheckbox.checked;
+                const jobsToTranslate = [];
+                if (uniqueJobs.length > 0) {
+                    uniqueJobs.forEach(job => {
+                        if (useTM) {
+                            const mem = this.tm.get(job.type === 'block' ? (job.sourceParts || []).join(SEP) : job.sourceRaw, ctx);
+                            if (mem) {
+                                this.state.translationCache.set(job.originalText, mem);
+                                return;
+                            }
+                        }
+                        jobsToTranslate.push(job);
+                    });
+                }
+
+                if (jobsToTranslate.length > 0) {
+                    const systemPrompt = this.subjects.buildSystemPrompt();
+                    await this.api.translateInChunks(
+                        jobsToTranslate, apiKeyOrUrl, apiProvider, localModelName, systemPrompt
+                    );
+                }
+
+                // تطبيق النتائج + PostProcess + QA + TM put
+                this.ui.updateProgress('جاري تحديث البيانات...');
+                const warnings = [];
+                const SEP_REGEX = this.constants.CONTEXT_SEPARATOR;
+
+                for (const job of translationJobs) {
+                    const translatedText = this.state.translationCache.get(job.originalText);
+                    if (translatedText === undefined) continue;
+
+                    if (job.type === 'single') {
+                        let t1 = this.remoteGlossary.revertPlaceholders(translatedText, job.placeholders.glossary);
+                        t1 = this.quality.postProcess(t1, ctx);
+                        const final_text = this.quality.restoreSegments(t1, job.placeholders.locks);
+
+                        // QA
+                        warnings.push(...this.quality.qa.checkNumbers(job.sourceRaw || '', final_text),
+                                     ...this.quality.qa.checkSeparator(final_text, SEP_REGEX),
+                                     ...this.quality.qa.checkHtmlBalance(final_text));
+
+                        const { fileIndex, partIndex, key } = job.pointer;
+                        if (key === 'statement') this.state.translatedJsonData[fileIndex].data.statement = final_text;
+                        else if (key === 'answer') this.state.translatedJsonData[fileIndex].data.parts[partIndex].answer = final_text;
+                        else if (key === 'stem') this.state.translatedJsonData[fileIndex].data.parts[partIndex].stem = final_text;
+
+                        // TM save
+                        const srcKey = job.sourceRaw;
+                        if (useTM && srcKey) this.tm.put(srcKey, ctx, final_text);
+                    } else if (job.type === 'block') {
+                        const parts = translatedText.split(SEP_REGEX);
+                        const { fileIndex, partIndex, numChoices } = job.pointer;
+                        if (parts.length === numChoices + 1) {
+                            // stem
+                            let stem = this.remoteGlossary.revertPlaceholders(parts[0], job.placeholders.glossary[0]);
+                            stem = this.quality.postProcess(stem, ctx);
+                            stem = this.quality.restoreSegments(stem, job.placeholders.locks[0]);
+                            this.state.translatedJsonData[fileIndex].data.parts[partIndex].stem = stem;
+                            warnings.push(...this.quality.qa.checkNumbers(job.sourceParts?.[0] || '', stem),
+                                          ...this.quality.qa.checkHtmlBalance(stem));
+                            // choices
+                            for (let i = 0; i < numChoices; i++) {
+                                let ch = this.remoteGlossary.revertPlaceholders(parts[i + 1], job.placeholders.glossary[i + 1]);
+                                ch = this.quality.postProcess(ch, ctx);
+                                ch = this.quality.restoreSegments(ch, job.placeholders.locks[i + 1]);
+                                this.state.translatedJsonData[fileIndex].data.parts[partIndex].choices[i].html_content = ch;
+                                warnings.push(...this.quality.qa.checkNumbers(job.sourceParts?.[i + 1] || '', ch),
+                                              ...this.quality.qa.checkHtmlBalance(ch));
+                            }
+                            // TM save block
+                            if (useTM) this.tm.put((job.sourceParts || []).join(SEP_REGEX), ctx, [stem, ...this.state.translatedJsonData[fileIndex].data.parts[partIndex].choices.map(c => c.html_content)].join(SEP_REGEX));
+                        } else {
+                            console.warn("Mismatch in translated block parts for file", fileIndex, "part", partIndex);
+                        }
+                    }
+                }
+
+                // أظهر بعض التحذيرات (مختصرة)
+                if (warnings.length) {
+                    const limited = warnings.slice(0, 8).join(' ');
+                    this.ui.showAlert(`مراجعات آلية: ${limited}${warnings.length > 8 ? ' ...' : ''}`, 'info', 6000);
+                }
+
+                // تدقيق لغوي اختياري
+                if (this.dom.useProofreadCheckbox.checked) {
+                    this.ui.updateProgress('بدء التدقيق اللغوي الآلي...');
+                    const items = [];
+                    const backMap = new Map(); // id -> {pointer, locks}
+                    let pid = 0;
+
+                    const pushItem = (pointer, text) => {
+                        const prot = this.quality.protectSegments(text || '');
+                        items.push({ id: pid, text: prot.protectedText });
+                        backMap.set(pid, { pointer, locks: prot.placeholders });
+                        pid++;
+                    };
+
+                    this.state.translatedJsonData.forEach((file, fileIndex) => {
+                        const d = file.data;
+                        if (d.statement != null) pushItem({ fileIndex, key: 'statement' }, d.statement);
+                        d.parts?.forEach((p, partIndex) => {
+                            if (p.stem != null) pushItem({ fileIndex, partIndex, key: 'stem' }, p.stem);
+                            if (p.answer != null) pushItem({ fileIndex, partIndex, key: 'answer' }, p.answer);
+                            p.choices?.forEach((c, choiceIndex) => pushItem({ fileIndex, partIndex, choiceIndex, key: 'choice' }, c.html_content));
+                        });
+                    });
+
+                    const out = await this.api.proofreadInChunks(items, apiKeyOrUrl, apiProvider, localModelName);
+                    out.forEach(({ id, text }) => {
+                        const meta = backMap.get(id); if (!meta) return;
+                        let cleaned = this.quality.restoreSegments(text, meta.locks);
+                        // إعادة تنسيق بسيط بعد التدقيق
+                        cleaned = this.quality.normalizeArabicPunct(this.quality.enforceUnits(cleaned));
+                        const { fileIndex, partIndex, choiceIndex, key } = meta.pointer;
+                        if (key === 'statement') this.state.translatedJsonData[fileIndex].data.statement = cleaned;
+                        else if (key === 'stem') this.state.translatedJsonData[fileIndex].data.parts[partIndex].stem = cleaned;
+                        else if (key === 'answer') this.state.translatedJsonData[fileIndex].data.parts[partIndex].answer = cleaned;
+                        else if (key === 'choice') this.state.translatedJsonData[fileIndex].data.parts[partIndex].choices[choiceIndex].html_content = cleaned;
+                    });
+
+                    this.ui.showAlert('تم التدقيق اللغوي الآلي بنجاح ✅', 'success', 4000);
+                }
+
+                this.state.activeScreen = 'preview';
+                this.history.push(this.state.translatedJsonData);
+                this.session.save();
+                this.ui.showScreen('preview');
+                this.preview.render();
+                const stats = this.statistics.calculate();
+                this.ui.renderStatistics(stats);
+                this.ui.showAlert('تمت الترجمة بنجاح بجودة احترافية ✅', 'success');
+
+            } catch (error) {
+                if (error?.name === 'AbortError') {
+                    // تم الإلغاء
+                } else {
+                    console.error('Translation process failed:', error);
+                    this.ui.showAlert(error.message || 'فشل في عملية الترجمة.', 'error');
+                    this.ui.showScreen('setup');
+                }
+            } finally {
+                this.dom.translateBtn.disabled = false;
+                this.state.isTranslating = false;
+            }
+        },
+        
+        statistics: {
+            calculate() {
+                let totalTexts = 0, totalWords = 0;
+                const count = (text) => {
+                    if (text && typeof text === 'string') {
+                        totalTexts++;
+                        const div = document.createElement('div'); div.innerHTML = text;
+                        totalWords += (div.textContent || div.innerText || "").split(/\s+/).filter(Boolean).length;
+                    }
+                };
+                TranslatorApp.state.originalJsonData.forEach(file => {
+                    count(file.data.statement);
+                    file.data.parts?.forEach(part => {
+                        count(part.stem); count(part.answer);
+                        part.choices?.forEach(choice => count(choice.html_content));
+                    });
+                });
+                const timeElapsed = TranslatorApp.state.startTime ? ((Date.now() - TranslatorApp.state.startTime) / 1000).toFixed(1) : 0;
+                return { totalFiles: TranslatorApp.state.selectedFilesInfo.length, totalTexts, totalWords, timeElapsed };
+            }
+        },
+
+        ui: {
+            showScreen(screen) {
+                TranslatorApp.state.activeScreen = screen;
+                ['setupSection','progressContainer','previewSection','analyticsSection'].forEach(id => TranslatorApp.dom[id]?.classList.add('hidden'));
+                if (screen === 'setup') TranslatorApp.dom.setupSection.classList.remove('hidden');
+                if (screen === 'progress') TranslatorApp.dom.progressContainer.classList.remove('hidden');
+                if (screen === 'preview') { TranslatorApp.dom.previewSection.classList.remove('hidden'); TranslatorApp.dom.analyticsSection.classList.remove('hidden'); }
+            },
+            updateProgress(text) { TranslatorApp.dom.progressText.textContent = text; },
+            showAlert(message, type = 'error', duration = 5000) {
+                const colors = { error: 'bg-red-500', success: 'bg-green-500', info: 'bg-blue-500' };
+                const alertBox = document.createElement('div');
+                alertBox.className = `alert flex justify-between items-center text-white p-4 rounded-lg shadow-xl ${colors[type] || 'bg-gray-500'}`;
+                alertBox.innerHTML = `<span>${message}</span><button class="mr-2 text-xl font-bold" aria-label="إغلاق">&times;</button>`;
+                alertBox.querySelector('button').onclick = () => alertBox.remove();
+                TranslatorApp.dom.alertContainer.appendChild(alertBox);
+                if (duration) setTimeout(() => { alertBox.classList.add('fade-out'); alertBox.addEventListener('transitionend', () => alertBox.remove()); }, duration);
+            },
+            renderFileList() {
+                const { fileList } = TranslatorApp.dom;
+                fileList.innerHTML = '';
+                if (TranslatorApp.state.selectedFilesInfo.length === 0) return;
+                const ul = document.createElement('ul'); ul.className = 'my-4 space-y-2';
+                TranslatorApp.state.selectedFilesInfo.forEach((fileInfo, index) => {
+                    const li = document.createElement('li'); li.className = 'flex justify-between items-center p-2 rounded-lg';
+                    li.style.backgroundColor = 'color-mix(in srgb, var(--primary-color) 5%, var(--card-bg))';
+                    li.innerHTML = `<span class="font-medium">${fileInfo.name}</span><button data-index="${index}" class="remove-file-btn text-red-500 hover:text-red-700 font-bold text-xl" aria-label="إزالة">&times;</button>`;
+                    ul.appendChild(li);
+                });
+                fileList.appendChild(ul);
+                fileList.querySelectorAll('.remove-file-btn').forEach(btn => { btn.onclick = () => TranslatorApp.fileHandler.removeFile(parseInt(btn.dataset.index)); });
+            },
+            showGlossaryModal(show) { TranslatorApp.dom.glossaryModal.classList.toggle('hidden', !show); },
+            showMappedIdsModal(show) { TranslatorApp.dom.mappedIdsModal.classList.toggle('hidden', !show); },
+            showSubjectsModal(show) { TranslatorApp.dom.subjectsModal.classList.toggle('hidden', !show); },
+            renderGlossaryList(list) {
+                const c = TranslatorApp.dom.glossaryListContainer;
+                c.innerHTML = '';
+                if (list.length === 0) { c.innerHTML = `<p class="text-center" style="color: var(--secondary-text)">لا توجد مصطلحات.</p>`; return; }
+                const ul = document.createElement('ul'); ul.className = 'space-y-2';
+                list.forEach((entry) => {
+                    const li = document.createElement('li'); li.className = 'flex justify-between items-center p-2 rounded-md border';
+                    li.style.backgroundColor = 'var(--card-bg)'; li.style.borderColor = 'var(--card-border)';
+                    const originalIndex = TranslatorApp.state.glossary.findIndex(g => g.term === entry.term);
+                    li.innerHTML = `
+                        <div>
+                            <span class="font-semibold">${entry.term}</span>
+                            <span class="mx-2" style="color: var(--secondary-text)">→</span>
+                            <span>${entry.translation}</span>
+                            <span class="text-xs mr-2 px-2 py-1 rounded-full" style="background-color: var(--bg-color);">${entry.category || 'عام'}</span>
+                        </div>
+                        <button data-index="${originalIndex}" class="remove-glossary-btn text-red-500 hover:text-red-700 font-bold" aria-label="حذف">&times;</button>`;
+                    ul.appendChild(li);
+                });
+                c.appendChild(ul);
+                c.querySelectorAll('.remove-glossary-btn').forEach(btn => btn.onclick = () => TranslatorApp.glossary.delete(parseInt(btn.dataset.index)));
+            },
+            renderStatistics(stats) {
+                const { statsContainer } = TranslatorApp.dom;
+                statsContainer.innerHTML = '';
+                const map = { 'إجمالي الملفات': stats.totalFiles, 'إجمالي النصوص': stats.totalTexts, 'إجمالي الكلمات': stats.totalWords, 'زمن الترجمة (ث)': stats.timeElapsed };
+                Object.entries(map).forEach(([label, value]) => {
+                    const card = document.createElement('div'); card.className = 'p-4 rounded-lg';
+                    card.style.backgroundColor = 'color-mix(in srgb, var(--primary-color) 10%, var(--card-bg))';
+                    card.innerHTML = `<div class="text-2xl font-bold" style="color: var(--primary-color);">${value}</div><div class="text-sm" style="color: var(--secondary-text);">${label}</div>`;
+                    statsContainer.appendChild(card);
+                });
+            },
+            setSaveIndicator(state) {
+                const el = TranslatorApp.dom.saveIndicator; if (!el) return;
+                if (state === 'saving') { el.textContent = 'جاري الحفظ...'; el.classList.remove('saved'); }
+                else if (state === 'saved') { el.textContent = '✓ محفوظ'; el.classList.add('saved'); setTimeout(() => { el.textContent = '—'; el.classList.remove('saved'); }, 2000); }
+                else { el.textContent = '—'; el.classList.remove('saved'); }
+            }
+        },
+        
+        preview: {
+            editorInstances: new Map(),
+            render() {
+                const { previewContainer } = TranslatorApp.dom;
+                previewContainer.innerHTML = '';
+                this.editorInstances.clear();
+
+                TranslatorApp.state.translatedJsonData.forEach((file, fileIndex) => {
+                    const originalFile = TranslatorApp.state.originalJsonData[fileIndex];
+                    const card = document.createElement('div');
+                    card.className = 'preview-card p-6 rounded-2xl shadow-lg';
+                    card.id = `file-card-${fileIndex}`;
+                    card.innerHTML = `
+                        <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                            <h3 class="text-xl font-bold">📄 ${file.name}</h3>
+                        </div>
+                        <div class="comparison-content grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="original-content">
+                                <h4 class="font-semibold mb-3 border-b pb-2" style="color: var(--secondary-text);">النص الأصلي</h4>
+                                ${this.renderReadOnlyContent(originalFile.data)}
+                            </div>
+                            <div class="translated-content">
+                                <h4 class="font-semibold mb-3 border-b pb-2" style="color: var(--success-color);">النص المترجم (قابل للتعديل)</h4>
+                                ${this.renderEditableContent(file.data, fileIndex)}
+                            </div>
+                        </div>
+                    `;
+                    previewContainer.appendChild(card);
+                    this.initEditorsForFile(fileIndex);
+                });
+            },
+            renderReadOnlyContent(data) {
+                let content = '';
+                const createField = (label, value) => {
+                    if (value === undefined || value === null) return '';
+                    return `<div class="mb-4"><p class="font-semibold text-sm mb-1">${label}</p><div class="p-3 rounded-lg text-sm" style="background-color: var(--bg-color);">${TranslatorApp.security.sanitize(value)}</div></div>`;
+                };
+                content += createField('البيان (Statement)', data.statement);
+                data.parts?.forEach((part, partIndex) => {
+                    content += `<div class="border-t pt-4 mt-4" style="border-color: var(--card-border);"><h5 class="font-semibold text-md mb-2" style="color: var(--secondary-text);">الجزء ${partIndex + 1}</h5>`;
+                    content += createField('السؤال (Stem)', part.stem);
+                    content += createField('الإجابة (Answer)', part.answer);
+                    if (part.choices) {
+                        content += `<div class="mb-3"><p class="font-semibold text-sm mb-1">الخيارات (Choices):</p><ul class="list-disc list-inside space-y-2 mr-4">`;
+                        part.choices.forEach(choice => { content += `<li><div class="p-2 rounded-lg text-sm" style="background-color: var(--bg-color);">${TranslatorApp.security.sanitize(choice.html_content)}</div></li>`; });
+                        content += `</ul></div>`;
+                    }
+                    content += `</div>`;
+                });
+                return content;
+            },
+            renderEditableContent(data, fileIndex) {
+                let content = '';
+                const createField = (label, value, path) => {
+                    if (value === undefined || value === null) return '';
+                    const editorId = `editor-${fileIndex}-${path.replace(/\./g, '-')}`;
+                    return `<div class="mb-4"><p class="font-semibold text-sm mb-1">${label}</p><div id="${editorId}"></div></div>`;
+                };
+                content += createField('البيان (Statement)', data.statement, 'statement');
+                data.parts?.forEach((part, partIndex) => {
+                    content += `<div class="border-t pt-4 mt-4" style="border-color: var(--card-border);"><h5 class="font-semibold text-md mb-2" style="color: var(--secondary-text);">الجزء ${partIndex + 1}</h5>`;
+                    content += createField('السؤال (Stem)', part.stem, `parts.${partIndex}.stem`);
+                    content += createField('الإجابة (Answer)', part.answer, `parts.${partIndex}.answer`);
+                    if (part.choices) {
+                        content += `<div class="mb-3"><p class="font-semibold text-sm mb-1">الخيارات (Choices):</p><ul class="space-y-2">`;
+                        part.choices.forEach((choice, choiceIndex) => { content += `<li>${createField(`خيار ${choiceIndex + 1}`, choice.html_content, `parts.${partIndex}.choices.${choiceIndex}.html_content`)}</li>`; });
+                        content += `</ul></div>`;
+                    }
+                    content += `</div>`;
+                });
+                return content;
+            },
+            initEditorsForFile(fileIndex) {
+                const fileData = TranslatorApp.state.translatedJsonData[fileIndex].data;
+                const createEditor = (path, initialContent) => {
+                    const editorId = `editor-${fileIndex}-${path.replace(/\./g, '-')}`;
+                    const editorDiv = document.getElementById(editorId);
+                    if (!editorDiv) return;
+                    const quill = new Quill(editorDiv, { theme: 'snow', modules: { toolbar: [['bold','italic','underline'],[{ 'list': 'ordered' }, { 'list': 'bullet' }]] } });
+                    const safeInitial = TranslatorApp.security.sanitize(initialContent || '');
+                    quill.clipboard.dangerouslyPasteHTML(safeInitial);
+                    quill.on('text-change', () => {
+                        const dirty = quill.root.innerHTML || '';
+                        const safe = TranslatorApp.security.sanitize(dirty);
+                        this.updateData(fileIndex, path, safe);
+                    });
+                    this.editorInstances.set(editorId, quill);
+                };
+                createEditor('statement', fileData.statement);
+                fileData.parts?.forEach((part, partIndex) => {
+                    createEditor(`parts.${partIndex}.stem`, part.stem);
+                    createEditor(`parts.${partIndex}.answer`, part.answer);
+                    part.choices?.forEach((choice, choiceIndex) => createEditor(`parts.${partIndex}.choices.${choiceIndex}.html_content`, choice.html_content));
+                });
+            },
+            updateData(fileIndex, path, value) {
+                const keys = path.split('.');
+                let current = TranslatorApp.state.translatedJsonData[fileIndex].data;
+                for (let i = 0; i < keys.length - 1; i++) current = current[keys[i]];
+                current[keys[keys.length - 1]] = value;
+                TranslatorApp.history.push(TranslatorApp.state.translatedJsonData);
+                TranslatorApp.state.hasUnsavedChanges = true;
+            },
+            filter() {
+                const term = TranslatorApp.dom.searchPreview.value.toLowerCase();
+                const cards = document.querySelectorAll('.preview-card');
+                cards.forEach(card => {
+                    const content = card.textContent.toLowerCase();
+                    const isVisible = content.includes(term);
+                    card.style.display = isVisible ? '' : 'none';
+                    const original = card.querySelector('.original-content');
+                    this.clearHighlight(original);
+                    if (isVisible && term && original) this.highlightInNode(original, term);
+                });
+            },
+            highlightInNode(root, term) {
+                if (!root) return;
+                const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                    acceptNode: (node) => {
+                        if (!node.parentElement) return NodeFilter.FILTER_REJECT;
+                        if (node.parentElement.closest('.ql-editor')) return NodeFilter.FILTER_REJECT;
+                        if (['SCRIPT','STYLE'].includes(node.parentElement.nodeName)) return NodeFilter.FILTER_REJECT;
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                });
+                const nodes = [];
+                while (walker.nextNode()) nodes.push(walker.currentNode);
+                nodes.forEach(n => {
+                    const txt = n.textContent;
+                    if (txt && txt.toLowerCase().includes(term)) {
+                        const span = document.createElement('span');
+                        span.innerHTML = txt.replace(regex, `<mark class="search-highlight">$1</mark>`);
+                        n.parentNode.replaceChild(span, n);
+                    }
+                });
+            },
+            clearHighlight(root) {
+                if (!root) return;
+                const highlights = root.querySelectorAll('mark.search-highlight');
+                highlights.forEach(hl => { const parent = hl.parentNode; parent.replaceChild(document.createTextNode(hl.textContent), hl); parent.normalize(); });
+            },
+            escapeRegex(s) { return s.replace(/[-\/\\^$*+?.()|[```{}]/g, '\\$&'); }
+        },
+
+        export: {
+            async exportAs(format) { return (format === 'csv') ? this.toCsv() : this.toJson(); },
+            async toJson() {
+                const useMappedIds = TranslatorApp.dom.useMappedIdsCheckbox.checked;
+                let mappedIds = []; let idCounter = 0;
+                if (useMappedIds) {
+                    try { mappedIds = JSON.parse(TranslatorApp.dom.mappedIdsInput.value); if (!Array.isArray(mappedIds)) throw new Error('not array'); }
+                    catch { return TranslatorApp.ui.showAlert('قائمة المعرفات (mapped_id) غير صالحة.', 'error'); }
+                }
+                const zip = new JSZip();
+                TranslatorApp.state.translatedJsonData.forEach(file => {
+                    const originalFile = TranslatorApp.state.originalJsonData.find(f => f.name === file.name);
+                    const finalData = JSON.parse(JSON.stringify(originalFile.data));
+                    if (useMappedIds && idCounter < mappedIds.length) {
+                        const newId = parseInt(mappedIds[idCounter], 10);
+                        if (!isNaN(newId)) finalData.mapped_id = newId;
+                        idCounter++;
+                    }
+                    const updateField = (o, t) => (t !== undefined ? t : o);
+                    finalData.statement = updateField(originalFile.data.statement, file.data.statement);
+                    if (finalData.parts) {
+                        finalData.parts.forEach((part, partIndex) => {
+                            const translatedPart = file.data.parts[partIndex];
+                            if (translatedPart) {
+                                part.stem = updateField(part.stem, translatedPart.stem);
+                                part.answer = updateField(part.answer, translatedPart.answer);
+                                if (part.choices) {
+                                    part.choices.forEach((choice, choiceIndex) => {
+                                        if (translatedPart.choices && translatedPart.choices[choiceIndex]) {
+                                            choice.html_content = updateField(choice.html_content, translatedPart.choices[choiceIndex].html_content);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    zip.file(file.name, JSON.stringify(finalData, null, 2));
+                });
+                if (useMappedIds && idCounter < TranslatorApp.state.translatedJsonData.length) {
+                    TranslatorApp.ui.showAlert(`تحذير: عدد المعرفات (${idCounter}) أقل من عدد الملفات (${TranslatorApp.state.translatedJsonData.length}).`, 'error');
+                }
+                try {
+                    const content = await zip.generateAsync({ type: "blob" });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(content);
+                    link.download = `translated_questions_${new Date().toISOString().replace(/[:.]/g,'-')}.zip`;
+                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                    TranslatorApp.ui.showAlert('تم إنشاء ملف ZIP بنجاح!', 'success');
+                } catch (e) { console.error(e); TranslatorApp.ui.showAlert('فشل إنشاء ملف ZIP.', 'error'); }
+            },
+            async toCsv() {
+                let csv = '\uFEFFFileName,PartIndex,Type,OriginalText,TranslatedText\r\n';
+                TranslatorApp.state.originalJsonData.forEach((originalFile, fileIndex) => {
+                    const translatedFile = TranslatorApp.state.translatedJsonData[fileIndex];
+                    const fileName = originalFile.name;
+                    const addRow = (partIndex, type, originalText, translatedText) => {
+                        const escape = (str) => { const div = document.createElement('div'); div.innerHTML = str || ''; const text = (div.textContent || div.innerText || '').replace(/"/g, '""'); return `"${text}"`; };
+                        csv += [fileName, partIndex, type, escape(originalText), escape(translatedText)].join(',') + '\r\n';
+                    };
+                    addRow(0, 'statement', originalFile.data.statement, translatedFile.data.statement);
+                    originalFile.data.parts.forEach((part, partIndex) => {
+                        const translatedPart = translatedFile.data.parts[partIndex];
+                        addRow(partIndex + 1, 'stem', part.stem, translatedPart.stem);
+                        addRow(partIndex + 1, 'answer', part.answer, translatedPart.answer);
+                        part.choices.forEach((choice, choiceIndex) => {
+                            addRow(partIndex + 1, `choice_${choiceIndex + 1}`, choice.html_content, translatedPart.choices[choiceIndex].html_content);
+                        });
+                    });
+                });
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a"); link.href = url; link.download = `translated_data_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
+                document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+                TranslatorApp.ui.showAlert('تم إنشاء ملف CSV بنجاح!', 'success');
+            }
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => TranslatorApp.init());
+    </script>
+</body>
+</html>
