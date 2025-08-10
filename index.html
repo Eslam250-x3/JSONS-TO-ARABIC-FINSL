@@ -474,7 +474,7 @@
                 const toPlain = (html) => { const div = document.createElement('div'); div.innerHTML = html; return (div.textContent || div.innerText || '').trim(); };
                 return Array.from(new Set(bag.map(toPlain).filter(Boolean)));
             },
-            escapeRegex(str) { return str.replace(/[-\/\\^$*+?.()|[```{}]/g, '\\$&'); }
+            escapeRegex(str) { return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); }
         },
 
         remoteGlossary: {
@@ -1105,7 +1105,7 @@ Return ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}`;
                 const response = await fetch(apiUrl, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+                    method: 'POST, headers: { 'Content-Type': 'application/json' }, signal,
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }], generationConfig: { response_mime_type: "application/json" } })
                 });
                 if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`Gemini API Error: ${err?.error?.message || response.statusText}`); }
@@ -1740,7 +1740,7 @@ Return ONLY a valid JSON object: {"items":[{"id": number, "text": "translated"}]
                 const highlights = root.querySelectorAll('mark.search-highlight');
                 highlights.forEach(hl => { const parent = hl.parentNode; parent.replaceChild(document.createTextNode(hl.textContent), hl); parent.normalize(); });
             },
-            escapeRegex(s) { return s.replace(/[-\/\\^$*+?.()|[```{}]/g, '\\$&'); }
+            escapeRegex(s) { return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); }
         },
 
         export: {
