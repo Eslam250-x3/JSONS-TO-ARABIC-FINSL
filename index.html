@@ -1744,7 +1744,7 @@
             },
             escapeRegex(s) { return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); }
         },
- export: {
+export: {
             async exportAs(format) {
                 return (format === 'csv') ? this.toCsv() : this.toJson();
             },
@@ -1770,26 +1770,35 @@
                     const originalFile = TranslatorApp.state.originalJsonData.find(f => f.name === file.name);
                     const finalData = JSON.parse(JSON.stringify(originalFile.data));
 
+                    // A helper function to change the direction attribute
+                    const enforceRtlDirection = (html) => {
+                        if (typeof html !== 'string' || !html.includes('dir="ltr"')) {
+                            return html;
+                        }
+                        return html.replace(/dir="ltr"/g, 'dir="rtl"');
+                    };
+
                     // --- Apply required changes to the JSON structure ---
-                    // 1. Set language, dialect, and country metadata
                     finalData.metadata = finalData.metadata || {};
+                    finalData.metadata.title = "";
                     finalData.metadata.language = 'ar';
                     finalData.metadata.dialect = ['modern_standard'];
                     finalData.metadata.country = 'eg';
+                    finalData.metadata.source_id = null;
 
-                    // 2. Determine description based on statement and stem
+                    // Determine description based on translated statement and stem
                     let description = '';
-                    const statementText = finalData.statement;
-                    const stemText = finalData.parts?.[0]?.stem;
+                    const translatedStatement = finalData.statement;
+                    const translatedStem = finalData.parts?.[0]?.stem;
 
-                    // Remove HTML tags for the description field
+                    // A helper function to strip HTML tags
                     const stripHtml = (html) => {
                         const doc = new DOMParser().parseFromString(html, 'text/html');
                         return doc.body.textContent || "";
                     };
 
-                    const cleanStatement = statementText ? stripHtml(statementText) : '';
-                    const cleanStem = stemText ? stripHtml(stemText) : '';
+                    const cleanStatement = translatedStatement ? stripHtml(translatedStatement) : '';
+                    const cleanStem = translatedStem ? stripHtml(translatedStem) : '';
 
                     if (cleanStatement && cleanStem) {
                         description = cleanStatement + ' ' + cleanStem;
@@ -1801,7 +1810,7 @@
                     
                     finalData.metadata.description = description;
 
-                    // 3. Update mapped_id and filename
+                    // Update mapped_id and filename
                     let fileNameToUse = file.name;
                     if (useMappedIds && idCounter < mappedIds.length) {
                         const newMappedId = mappedIds[idCounter];
@@ -1813,8 +1822,11 @@
                          finalData.metadata.mapped_id = finalData.metadata.id;
                     }
 
-                    // 4. Update the actual content with the translated text
-                    const updateField = (original, translated) => (translated !== undefined ? translated : original);
+                    // Update the actual content with the translated text and enforce RTL direction
+                    const updateField = (original, translated) => {
+                        const updatedText = (translated !== undefined ? translated : original);
+                        return enforceRtlDirection(updatedText);
+                    };
 
                     finalData.statement = updateField(originalFile.data.statement, file.data.statement);
                     if (finalData.parts) {
