@@ -1121,7 +1121,7 @@
                 messages.push({ role: 'user', content: `${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}` });
                 const response = await fetch(apiUrl, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
-                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2, response_format: { type: "json_object" } })
+                    body: JSON.stringify({ model: 'gpt-4.1', messages, temperature: 0.2, response_format: { type: "json_object" } })
                 });
                 if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`ChatGPT API Error: ${err?.error?.message || response.statusText}`); }
                 const data = await response.json();
@@ -1152,7 +1152,7 @@
                 messages.push({ role: 'user', content: userPrompt });
                 const response = await fetch(apiUrl, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
-                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2 })
+                    body: JSON.stringify({ model: 'gpt-4.1', messages, temperature: 0.2 })
                 });
                 if (!response.ok) { const err = await response.json(); throw new Error(`ChatGPT API Error: ${err.error?.message || response.statusText}`); }
                 const data = await response.json();
@@ -1878,7 +1878,7 @@ export: {
                     TranslatorApp.ui.showAlert('تم إنشاء ملف ZIP بنجاح!', 'success');
                 } catch (e) {
                     console.error(e);
-                    TranslatorApp.ui.showAlert('فشل إنشاء ملف ZIP.', 'error');},
+                    TranslatorApp.ui.showAlert('فشل إنشاء ملف ZIP.', 'error');}},
             async toCsv() {
                 let csv = '\uFEFFFileName,PartIndex,Type,OriginalText,TranslatedText\r\n';
                 TranslatorApp.state.originalJsonData.forEach((originalFile, fileIndex) => {
