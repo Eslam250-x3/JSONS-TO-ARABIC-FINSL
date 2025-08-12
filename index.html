@@ -11,6 +11,8 @@
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <!-- DOMPurify -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <!-- Diff Match Patch -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/diff_match_patch/20121119/diff_match_patch.js"></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +31,8 @@
             --success-color: #10b981;
             --error-color: #ef4444;
             --highlight-bg: #fef9c3;
+            --diff-ins-bg: #ddfbe9;
+            --diff-del-bg: #fce8e9;
         }
         [data-theme="dark"] {
             --bg-color: #111827;
@@ -41,6 +45,8 @@
             --primary-hover: #818cf8;
             --secondary-text: #9ca3af;
             --highlight-bg: #4d4318;
+            --diff-ins-bg: #133825;
+            --diff-del-bg: #411a1d;
         }
         body { font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }
         .main-card, .preview-card { background-color: var(--card-bg); border: 1px solid var(--card-border); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -55,9 +61,63 @@
         .alert { transition: all 0.5s ease-in-out; opacity: 1; transform: translateX(0); }
         .alert.fade-out { opacity: 0; transform: translateX(100%); }
         .search-highlight, mark.search-highlight { background-color: var(--highlight-bg); color: var(--text-color); border-radius: 3px; padding: 0 2px; }
-        @media (max-width: 768px) { .comparison-content { grid-template-columns: 1fr; } }
         #saveIndicator { font-size: 0.85rem; color: var(--secondary-text); }
         #saveIndicator.saved { color: var(--success-color); }
+        
+        /* Accordion Styles */
+        .accordion-header {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            text-align: right;
+            font-weight: 700;
+            font-size: 1.125rem;
+            border-radius: 0.75rem;
+            background-color: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .accordion-header:hover { background-color: color-mix(in srgb, var(--primary-color) 15%, var(--card-bg)); }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-in-out;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--card-border);
+        }
+        .accordion-content.open {
+            padding: 1.5rem;
+        }
+
+        /* Diff View Styles */
+        .diff-view {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: var(--bg-color);
+            border: 1px solid var(--card-border);
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .diff-view ins {
+            background-color: var(--diff-ins-bg);
+            text-decoration: none;
+        }
+        .diff-view del {
+            background-color: var(--diff-del-bg);
+            text-decoration: line-through;
+        }
+
+        /* Status Indicator */
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+        }
+        .status-translated { background-color: var(--success-color); }
+        .status-edited { background-color: #f59e0b; } /* Amber 500 */
+
     </style>
 </head>
 <body class="text-gray-800">
@@ -184,7 +244,7 @@
                 <div class="flex flex-wrap gap-4 items-center justify-between">
                     <div>
                         <h3 class="text-2xl font-bold" style="color: var(--success-color);">الخطوة 2: معاينة وتعديل الترجمة</h3>
-                        <p class="mt-1" style="color: var(--secondary-text);">راجع التراجم، عدّلها، وابحث فيها.</p>
+                        <p class="mt-1" style="color: var(--secondary-text);">راجع التراجم، عدّلها، وقارنها بالنص الأصلي.</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button id="undoBtn" disabled class="px-3 py-2 rounded-lg disabled:opacity-50">↩️ تراجع</button>
@@ -200,7 +260,7 @@
                 </div>
             </div>
 
-            <div id="previewContainer" class="space-y-8"></div>
+            <div id="previewContainer" class="space-y-4"></div>
 
             <div class="main-card mt-8 p-4 rounded-2xl shadow-lg flex items-center justify-center gap-4">
                 <label for="exportFormat" class="font-semibold">تنسيق التصدير:</label>
@@ -215,7 +275,7 @@
         </div>
     </div>
 
-    <!-- Glossary Modal -->
+    <!-- Modals (Glossary, Mapped IDs, Subjects) remain the same -->
     <div id="glossaryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-2xl transform transition-all" role="dialog" aria-labelledby="glossaryTitle">
             <div class="flex justify-between items-center">
@@ -247,7 +307,6 @@
         </div>
     </div>
     
-    <!-- Mapped IDs Modal -->
     <div id="mappedIdsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-2xl transform transition-all" role="dialog" aria-labelledby="mappedIdsTitle">
             <div class="flex justify-between items-center">
@@ -267,7 +326,6 @@
         </div>
     </div>
 
-    <!-- Subjects Modal -->
     <div id="subjectsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="main-card rounded-2xl shadow-xl p-6 w-full max-w-3xl transform transition-all" role="dialog" aria-labelledby="subjectsTitle">
             <div class="flex justify-between items-center">
@@ -487,7 +545,7 @@
                     const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?sheet=termbase&tqx=out:json&headers=1&tq=${encodeURIComponent(tq)}`;
                     const res = await fetch(url, { cache: 'no-cache' });
                     const raw = await res.text();
-                    const match = raw.match(/google\.visualization\.Query\.setResponseKATEX_INLINE_OPEN([\s\S]+)KATEX_INLINE_CLOSE;/);
+                    const match = raw.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);/);
                     if (!match) throw new Error('تعذّر قراءة استجابة gviz.');
                     const data = JSON.parse(match[1]);
                     const rows = data.table?.rows || [];
@@ -553,15 +611,14 @@
                 if (typeof html !== 'string') return html;
                 if (window.DOMPurify) {
                     return DOMPurify.sanitize(html, {
-                        ALLOWED_TAGS: ['b','i','u','em','strong','sub','sup','br','span','p','ul','ol','li','img','a','code','pre','table','tr','td','th','thead','tbody','math'],
-                        ALLOWED_ATTR: ['href','src','alt','title','class','style']
+                        ALLOWED_TAGS: ['b','i','u','em','strong','sub','sup','br','span','p','ul','ol','li','img','a','code','pre','table','tr','td','th','thead','tbody','math', 'div'],
+                        ALLOWED_ATTR: ['href','src','alt','title','class','style', 'dir']
                     });
                 }
                 return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
             }
         },
 
-        // جودة و QA و Post-processing
         quality: {
             wantsArabicIndicDigits(subject, grade) {
                 if (subject === 'Mathematics' && ['Grades 1–3','Grades 8–12'].includes(grade)) return true;
@@ -572,11 +629,13 @@
                 const placeholders = {};
                 let idx = 0;
                 const patterns = [
+                    /_{3,}/g, // Blanks (e.g., ___)
                     /```[\s\S]*?```/g,
                     /`[^`]*`/g,
                     /\$\$[\s\S]*?\$\$/g,
                     /\$[^$]*\$/g,
-                    /\\KATEX_INLINE_OPEN[^KATEX_INLINE_CLOSE]*\\KATEX_INLINE_CLOSE/g,
+                    /\\\[[\s\S]*?\\]/g,
+                    /\\\([\s\S]*?\\\)/g,
                     /https?:\/\/\S+/g
                 ];
                 let protectedText = text || '';
@@ -598,6 +657,8 @@
             },
             normalizeArabicPunct(str) {
                 return (str || '')
+                    .replace(/ ,/g, '،')
+                    .replace(/, /g, '، ')
                     .replace(/,/g, '،')
                     .replace(/;/g, '؛')
                     .replace(/\?/g, '؟')
@@ -665,7 +726,6 @@
                 const store = this.getStore();
                 const k = this.key(text, ctx);
                 store[k] = translated;
-                // بسيط: بدون حد أقصى – يمكن لاحقًا إضافة LRU
                 this.saveStore(store);
             }
         },
@@ -756,9 +816,11 @@
                 }
             },
             clear() {
-                localStorage.removeItem('translatorSession');
-                sessionStorage.removeItem('translatorEphemeralKeys');
-                location.reload();
+                if (confirm('هل أنت متأكد أنك تريد بدء جلسة جديدة؟ سيتم حذف جميع البيانات الحالية.')) {
+                    localStorage.removeItem('translatorSession');
+                    sessionStorage.removeItem('translatorEphemeralKeys');
+                    location.reload();
+                }
             }
         },
         
@@ -916,7 +978,7 @@
                         }).filter(r => r.term && r.translation);
                     }
                     const newEntries = imported.filter(newEntry => !TranslatorApp.state.glossary.some(existing => existing.term.toLowerCase().trim() === newEntry.term.toLowerCase().trim()))
-                                              .map(e => ({ term: e.term, translation: e.translation, category: 'general', dateAdded: new Date().toISOString() }));
+                                                .map(e => ({ term: e.term, translation: e.translation, category: 'general', dateAdded: new Date().toISOString() }));
                     TranslatorApp.state.glossary = [...TranslatorApp.state.glossary, ...newEntries];
                     this.render();
                     TranslatorApp.state.hasUnsavedChanges = true;
@@ -937,10 +999,10 @@
                     'Grades 8–12': 'Task: Translate English Math questions for grades 8-12 into accurate Arabic.\nRules:\n1) Use official MoE phrasing.\n2) Use Arabic-Indic numerals; transliterate variables to Arabic.\n3) Fractions as \\dfrac{البسط}{المقام}.\n4) If text contains \\n<SEP>\\n, translate each part and preserve separator.'
                 }},
                 'Physics': { grades: ['Grades 10–12'], prompts: {
-                    'Grades 10–12': 'Translate Physics questions.\nUse official MoE phrasing, English numerals and keep units (cm,m,kg) as abbreviations. Keep subscripts and variables exact. If text contains \\n<SEP>\\n, translate parts separately and preserve separator.'
+                    'Grades 10–12': 'Translate Physics questions.\nRules:\n1) Use official MoE phrasing.\n2) Use English numerals.\n3) Keep physical formulas (e.g., F=ma), variables, and units (cm, m, kg) in their original LTR format. Wrap formulas in `<span dir="ltr"></span>`.\n4) Keep subscripts and variables exact.\n5) If text contains \\n<SEP>\\n, translate parts separately and preserve separator.'
                 }},
                 'Chemistry': { grades: ['Grades 10–12'], prompts: {
-                    'Grades 10–12': 'Translate Chemistry questions.\nUse English numerals; keep equations LTR; keep units in English abbreviations. If text contains \\n<SEP>\\n, preserve separator.'
+                    'Grades 10–12': 'Translate Chemistry questions.\nRules:\n1) Use English numerals.\n2) Keep chemical formulas, symbols, and equations in their original LTR format. Wrap them in `<span dir="ltr"></span>` to ensure correct directionality.\n3) Keep units in English abbreviations.\n4) If text contains \\n<SEP>\\n, preserve separator.'
                 }},
                 'Biology': { grades: ['Grades 10–12'], prompts: {
                     'Grades 10–12': 'Translate Biology questions.\nUse English numerals; Arabic labels (أ، ب، ج); translate text within figures; preserve \\n<SEP>\\n.'
@@ -991,7 +1053,7 @@
                 const core = [
                     'Core rules:',
                     '- Do NOT add or remove content.',
-                    '- Preserve all HTML and LaTeX exactly as-is.',
+                    '- Translate text content inside of HTML tags. Preserve the HTML tags themselves (e.g., <table>, <b>, <img>) and all LaTeX markup exactly as-is.',
                     '- If present, keep placeholders __LOCK_n__ and __GLOSSARY_n__ unchanged.',
                     `- ${digitsRule}`,
                     `- If text contains the separator ${TranslatorApp.constants.CONTEXT_SEPARATOR}, translate each segment and preserve the separator exactly.`,
@@ -1102,7 +1164,7 @@
             },
 
             async withGeminiJSON(systemPrompt, userInstruction, payload, apiKey, signal) {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
                 const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -1121,7 +1183,7 @@
                 messages.push({ role: 'user', content: `${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}` });
                 const response = await fetch(apiUrl, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
-                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2, response_format: { type: "json_object" } })
+                    body: JSON.stringify({ model: 'gpt-4.1-turbo', messages, temperature: 0.2, response_format: { type: "json_object" } })
                 });
                 if (!response.ok) { let err; try { err = await response.json(); } catch {} throw new Error(`ChatGPT API Error: ${err?.error?.message || response.statusText}`); }
                 const data = await response.json();
@@ -1131,14 +1193,14 @@
                 const fullPrompt = `${systemPrompt || ''}\n\n${userInstruction}\n\nPayload:\n${JSON.stringify(payload)}\n\nReturn ONLY JSON.`;
                 const response = await fetch(url, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-                    body: JSON.stringify({ model: modelName, prompt: fullPrompt, system: '', stream: false })
+                    body: JSON.stringify({ model: modelName, prompt: fullPrompt, system: '', stream: false, format: 'json' })
                 });
                 if (!response.ok) throw new Error(`Local server error: ${response.status} ${response.statusText}`);
                 const data = await response.json();
                 return data.response || '';
             },
             async withGeminiText(systemPrompt, userPrompt, apiKey, signal) {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
                 const fullPrompt = systemPrompt ? `${systemPrompt}\n\n---\n\n${userPrompt}` : userPrompt;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }) });
@@ -1152,7 +1214,7 @@
                 messages.push({ role: 'user', content: userPrompt });
                 const response = await fetch(apiUrl, {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, signal,
-                    body: JSON.stringify({ model: 'gpt-4o', messages, temperature: 0.2 })
+                    body: JSON.stringify({ model: 'gpt-4.1-turbo', messages, temperature: 0.2 })
                 });
                 if (!response.ok) { const err = await response.json(); throw new Error(`ChatGPT API Error: ${err.error?.message || response.statusText}`); }
                 const data = await response.json();
@@ -1166,28 +1228,6 @@
                 if (!response.ok) throw new Error(`Local server error: ${response.status} ${response.statusText}`);
                 const data = await response.json();
                 return data.response || '';
-            },
-            // Legacy batch (with fixed split)
-            async translateWithRetry(texts, apiKeyOrUrl, provider, maxRetries = 3, localModelName = '', systemPrompt = '') {
-                for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                    try { TranslatorApp.ui.updateProgress(`جاري الترجمة... (المحاولة ${attempt}/${maxRetries})`);
-                        return await this.translateBatch(texts, apiKeyOrUrl, provider, localModelName, systemPrompt);
-                    } catch (error) {
-                        if (attempt === maxRetries) throw error;
-                        await new Promise(resolve => setTimeout(resolve, 500 + Math.random()*1000*attempt));
-                    }
-                }
-            },
-            async translateBatch(texts, apiKeyOrUrl, provider, localModelName = '', systemPrompt = '') {
-                const BATCH_SEPARATOR = "\n|||---|||\n", CONTEXT_SEPARATOR = "\n<SEP>\n";
-                const userPrompt = `You will receive texts separated by "${BATCH_SEPARATOR}". Some contain "${CONTEXT_SEPARATOR}". Translate accordingly and preserve separators and placeholders. Keep HTML/LaTeX.\n\n${texts.join(BATCH_SEPARATOR)}`;
-                let responseText;
-                if (provider === 'gemini') responseText = await this.withGeminiText(systemPrompt, userPrompt, apiKeyOrUrl, this.abortController?.signal);
-                else if (provider === 'chatgpt') responseText = await this.withChatGPTText(systemPrompt, userPrompt, apiKeyOrUrl, this.abortController?.signal);
-                else responseText = await this.withLocalModelText(systemPrompt, userPrompt, apiKeyOrUrl, localModelName, this.abortController?.signal);
-                const translatedTexts = responseText.split(BATCH_SEPARATOR); // FIX: no trim
-                if (translatedTexts.length !== texts.length) throw new Error("حدث خطأ أثناء الترجمة المجمعة.");
-                return translatedTexts.map(t => t.trim());
             }
         },
         
@@ -1237,7 +1277,7 @@
             this.dom.translateBtn.disabled = true;
             this.state.translationCache.clear();
             this.state.startTime = Date.now();
-            const aborter = this.api.createAbortController();
+            this.api.createAbortController();
             this.state.isTranslating = true;
 
             try {
@@ -1245,7 +1285,6 @@
                 await this.fileHandler.readFilesFromInput();
                 this.state.translatedJsonData = JSON.parse(JSON.stringify(this.state.originalJsonData));
 
-                // جمع النصوص + قاموس المادة
                 this.ui.updateProgress('جاري تحضير المصطلحات المعتمدة...');
                 const allTexts = this.utils.collectAllTextsFromFiles(this.state.originalJsonData);
                 const subject = this.state.selectedSubject;
@@ -1253,18 +1292,15 @@
                 const ctx = { subject, grade };
 
                 await this.remoteGlossary.fetchApproved(subject, allTexts);
-                // دمج القاموس المحلي إذا مُفعّل
                 if (this.dom.useGlossaryCheckbox.checked && this.state.glossary.length > 0) {
                     const merged = { ...(this.remoteGlossary.map || {}) };
                     this.state.glossary.forEach(e => { if (e.term && e.translation) merged[e.term] = e.translation; });
                     this.remoteGlossary.map = merged;
                 }
 
-                // بناء مهام الترجمة (مع حماية المقاطع + placeholders + TM)
                 this.ui.updateProgress('جاري تجميع النصوص للترجمة...');
                 const translationJobs = [];
                 const SEP = this.constants.CONTEXT_SEPARATOR;
-
                 const applyGlossary = (txt) => this.remoteGlossary.applyWithPlaceholders(txt);
 
                 this.state.originalJsonData.forEach((file, fileIndex) => {
@@ -1344,7 +1380,6 @@
                     });
                 });
 
-                // إزالة التكرارات + TM
                 const uniqueJobs = [];
                 const seen = new Set();
                 for (const job of translationJobs) {
@@ -1378,7 +1413,6 @@
                     );
                 }
 
-                // تطبيق النتائج + PostProcess + QA + TM put
                 this.ui.updateProgress('جاري تحديث البيانات...');
                 const warnings = [];
                 const SEP_REGEX = this.constants.CONTEXT_SEPARATOR;
@@ -1392,31 +1426,27 @@
                         t1 = this.quality.postProcess(t1, ctx);
                         const final_text = this.quality.restoreSegments(t1, job.placeholders.locks);
 
-                        // QA
                         warnings.push(...this.quality.qa.checkNumbers(job.sourceRaw || '', final_text),
-                                     ...this.quality.qa.checkSeparator(final_text, SEP_REGEX),
-                                     ...this.quality.qa.checkHtmlBalance(final_text));
+                                      ...this.quality.qa.checkSeparator(final_text, SEP_REGEX),
+                                      ...this.quality.qa.checkHtmlBalance(final_text));
 
                         const { fileIndex, partIndex, key } = job.pointer;
                         if (key === 'statement') this.state.translatedJsonData[fileIndex].data.statement = final_text;
                         else if (key === 'answer') this.state.translatedJsonData[fileIndex].data.parts[partIndex].answer = final_text;
                         else if (key === 'stem') this.state.translatedJsonData[fileIndex].data.parts[partIndex].stem = final_text;
 
-                        // TM save
                         const srcKey = job.sourceRaw;
                         if (useTM && srcKey) this.tm.put(srcKey, ctx, final_text);
                     } else if (job.type === 'block') {
                         const parts = translatedText.split(SEP_REGEX);
                         const { fileIndex, partIndex, numChoices } = job.pointer;
                         if (parts.length === numChoices + 1) {
-                            // stem
                             let stem = this.remoteGlossary.revertPlaceholders(parts[0], job.placeholders.glossary[0]);
                             stem = this.quality.postProcess(stem, ctx);
                             stem = this.quality.restoreSegments(stem, job.placeholders.locks[0]);
                             this.state.translatedJsonData[fileIndex].data.parts[partIndex].stem = stem;
                             warnings.push(...this.quality.qa.checkNumbers(job.sourceParts?.[0] || '', stem),
                                           ...this.quality.qa.checkHtmlBalance(stem));
-                            // choices
                             for (let i = 0; i < numChoices; i++) {
                                 let ch = this.remoteGlossary.revertPlaceholders(parts[i + 1], job.placeholders.glossary[i + 1]);
                                 ch = this.quality.postProcess(ch, ctx);
@@ -1425,7 +1455,6 @@
                                 warnings.push(...this.quality.qa.checkNumbers(job.sourceParts?.[i + 1] || '', ch),
                                               ...this.quality.qa.checkHtmlBalance(ch));
                             }
-                            // TM save block
                             if (useTM) this.tm.put((job.sourceParts || []).join(SEP_REGEX), ctx, [stem, ...this.state.translatedJsonData[fileIndex].data.parts[partIndex].choices.map(c => c.html_content)].join(SEP_REGEX));
                         } else {
                             console.warn("Mismatch in translated block parts for file", fileIndex, "part", partIndex);
@@ -1433,17 +1462,15 @@
                     }
                 }
 
-                // أظهر بعض التحذيرات (مختصرة)
                 if (warnings.length) {
                     const limited = warnings.slice(0, 8).join(' ');
                     this.ui.showAlert(`مراجعات آلية: ${limited}${warnings.length > 8 ? ' ...' : ''}`, 'info', 6000);
                 }
 
-                // تدقيق لغوي اختياري
                 if (this.dom.useProofreadCheckbox.checked) {
                     this.ui.updateProgress('بدء التدقيق اللغوي الآلي...');
                     const items = [];
-                    const backMap = new Map(); // id -> {pointer, locks}
+                    const backMap = new Map();
                     let pid = 0;
 
                     const pushItem = (pointer, text) => {
@@ -1467,7 +1494,6 @@
                     out.forEach(({ id, text }) => {
                         const meta = backMap.get(id); if (!meta) return;
                         let cleaned = this.quality.restoreSegments(text, meta.locks);
-                        // إعادة تنسيق بسيط بعد التدقيق
                         cleaned = this.quality.normalizeArabicPunct(this.quality.enforceUnits(cleaned));
                         const { fileIndex, partIndex, choiceIndex, key } = meta.pointer;
                         if (key === 'statement') this.state.translatedJsonData[fileIndex].data.statement = cleaned;
@@ -1489,9 +1515,7 @@
                 this.ui.showAlert('تمت الترجمة بنجاح بجودة احترافية ✅', 'success');
 
             } catch (error) {
-                if (error?.name === 'AbortError') {
-                    // تم الإلغاء
-                } else {
+                if (error?.name !== 'AbortError') {
                     console.error('Translation process failed:', error);
                     this.ui.showAlert(error.message || 'فشل في عملية الترجمة.', 'error');
                     this.ui.showScreen('setup');
@@ -1602,89 +1626,119 @@
         
         preview: {
             editorInstances: new Map(),
+            dmp: new diff_match_patch(),
             render() {
                 const { previewContainer } = TranslatorApp.dom;
                 previewContainer.innerHTML = '';
                 this.editorInstances.clear();
 
                 TranslatorApp.state.translatedJsonData.forEach((file, fileIndex) => {
-                    const originalFile = TranslatorApp.state.originalJsonData[fileIndex];
-                    const card = document.createElement('div');
-                    card.className = 'preview-card p-6 rounded-2xl shadow-lg';
-                    card.id = `file-card-${fileIndex}`;
-                    card.innerHTML = `
-                        <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-                            <h3 class="text-xl font-bold">📄 ${file.name}</h3>
-                        </div>
-                        <div class="comparison-content grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="original-content">
-                                <h4 class="font-semibold mb-3 border-b pb-2" style="color: var(--secondary-text);">النص الأصلي</h4>
-                                ${this.renderReadOnlyContent(originalFile.data)}
-                            </div>
-                            <div class="translated-content">
-                                <h4 class="font-semibold mb-3 border-b pb-2" style="color: var(--success-color);">النص المترجم (قابل للتعديل)</h4>
-                                ${this.renderEditableContent(file.data, fileIndex)}
-                            </div>
-                        </div>
-                    `;
-                    previewContainer.appendChild(card);
+                    const fileAccordion = document.createElement('div');
+                    fileAccordion.className = 'preview-card rounded-2xl shadow-lg overflow-hidden';
+                    
+                    const header = document.createElement('button');
+                    header.className = 'accordion-header';
+                    header.innerHTML = `📄 ${file.name}`;
+                    header.onclick = (e) => {
+                        const content = e.currentTarget.nextElementSibling;
+                        e.currentTarget.classList.toggle('active');
+                        if (content.style.maxHeight) {
+                            content.style.maxHeight = null;
+                        } else {
+                            content.style.maxHeight = content.scrollHeight + "px";
+                        }
+                    };
+
+                    const content = document.createElement('div');
+                    content.className = 'accordion-content';
+                    content.innerHTML = this.renderFileContent(file.data, fileIndex);
+
+                    fileAccordion.appendChild(header);
+                    fileAccordion.appendChild(content);
+                    previewContainer.appendChild(fileAccordion);
+
                     this.initEditorsForFile(fileIndex);
+                    this.generateInitialDiffs(fileIndex);
                 });
             },
-            renderReadOnlyContent(data) {
-                let content = '';
-                const createField = (label, value) => {
-                    if (value === undefined || value === null) return '';
-                    return `<div class="mb-4"><p class="font-semibold text-sm mb-1">${label}</p><div class="p-3 rounded-lg text-sm" style="background-color: var(--bg-color);">${TranslatorApp.security.sanitize(value)}</div></div>`;
-                };
-                content += createField('البيان (Statement)', data.statement);
-                data.parts?.forEach((part, partIndex) => {
-                    content += `<div class="border-t pt-4 mt-4" style="border-color: var(--card-border);"><h5 class="font-semibold text-md mb-2" style="color: var(--secondary-text);">الجزء ${partIndex + 1}</h5>`;
-                    content += createField('السؤال (Stem)', part.stem);
-                    content += createField('الإجابة (Answer)', part.answer);
-                    if (part.choices) {
-                        content += `<div class="mb-3"><p class="font-semibold text-sm mb-1">الخيارات (Choices):</p><ul class="list-disc list-inside space-y-2 mr-4">`;
-                        part.choices.forEach(choice => { content += `<li><div class="p-2 rounded-lg text-sm" style="background-color: var(--bg-color);">${TranslatorApp.security.sanitize(choice.html_content)}</div></li>`; });
-                        content += `</ul></div>`;
-                    }
-                    content += `</div>`;
-                });
-                return content;
-            },
-            renderEditableContent(data, fileIndex) {
-                let content = '';
-                const createField = (label, value, path) => {
-                    if (value === undefined || value === null) return '';
+
+            renderFileContent(data, fileIndex) {
+                let html = '<div class="space-y-6">';
+                const renderField = (label, originalValue, translatedValue, path) => {
+                    if (originalValue === undefined || originalValue === null) return '';
                     const editorId = `editor-${fileIndex}-${path.replace(/\./g, '-')}`;
-                    return `<div class="mb-4"><p class="font-semibold text-sm mb-1">${label}</p><div id="${editorId}"></div></div>`;
+                    const diffId = `diff-${editorId}`;
+                    const statusId = `status-${editorId}`;
+
+                    return `
+                        <div class="border rounded-lg p-4" style="border-color: var(--card-border);">
+                            <div class="flex justify-between items-center mb-2">
+                                <h5 class="font-bold flex items-center">${label} <span id="${statusId}" class="status-dot status-translated" title="تمت الترجمة"></span></h5>
+                                <div class="flex gap-2">
+                                    <button class="text-xs font-semibold py-1 px-2 rounded" onclick="TranslatorApp.preview.copyOriginalText(this)">نسخ الأصلي</button>
+                                    <button class="text-xs font-semibold py-1 px-2 rounded" onclick="document.getElementById('${diffId}').parentNode.classList.toggle('hidden')">عرض/إخفاء الفروقات</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm font-semibold mb-1" style="color: var(--secondary-text);">الأصلي</p>
+                                    <div class="original-text-readonly p-3 rounded-lg text-sm h-full" style="background-color: var(--bg-color);">${TranslatorApp.security.sanitize(originalValue)}</div>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold mb-1" style="color: var(--success-color);">المترجم (قابل للتعديل)</p>
+                                    <div id="${editorId}"></div>
+                                </div>
+                            </div>
+                            <div class="mt-4 hidden">
+                                 <p class="text-sm font-semibold mb-1" style="color: var(--secondary-text);">مقارنة الفروقات</p>
+                                <div id="${diffId}" class="diff-view"></div>
+                            </div>
+                        </div>`;
                 };
-                content += createField('البيان (Statement)', data.statement, 'statement');
+                
+                html += renderField('البيان (Statement)', TranslatorApp.state.originalJsonData[fileIndex].data.statement, data.statement, 'statement');
+
                 data.parts?.forEach((part, partIndex) => {
-                    content += `<div class="border-t pt-4 mt-4" style="border-color: var(--card-border);"><h5 class="font-semibold text-md mb-2" style="color: var(--secondary-text);">الجزء ${partIndex + 1}</h5>`;
-                    content += createField('السؤال (Stem)', part.stem, `parts.${partIndex}.stem`);
-                    content += createField('الإجابة (Answer)', part.answer, `parts.${partIndex}.answer`);
-                    if (part.choices) {
-                        content += `<div class="mb-3"><p class="font-semibold text-sm mb-1">الخيارات (Choices):</p><ul class="space-y-2">`;
-                        part.choices.forEach((choice, choiceIndex) => { content += `<li>${createField(`خيار ${choiceIndex + 1}`, choice.html_content, `parts.${partIndex}.choices.${choiceIndex}.html_content`)}</li>`; });
-                        content += `</ul></div>`;
-                    }
-                    content += `</div>`;
+                    html += '<div class="border-t pt-4 mt-4 space-y-4" style="border-color: var(--card-border);">';
+                    html += `<h5 class="font-semibold text-md" style="color: var(--secondary-text);">الجزء ${partIndex + 1}</h5>`;
+                    const originalPart = TranslatorApp.state.originalJsonData[fileIndex].data.parts[partIndex];
+                    html += renderField('السؤال (Stem)', originalPart.stem, part.stem, `parts.${partIndex}.stem`);
+                    html += renderField('الإجابة (Answer)', originalPart.answer, part.answer, `parts.${partIndex}.answer`);
+                    
+                    part.choices?.forEach((choice, choiceIndex) => {
+                        const originalChoice = originalPart.choices[choiceIndex];
+                        html += renderField(`خيار ${choiceIndex + 1}`, originalChoice.html_content, choice.html_content, `parts.${partIndex}.choices.${choiceIndex}.html_content`);
+                    });
+                    html += '</div>';
                 });
-                return content;
+
+                html += '</div>';
+                return html;
             },
+
             initEditorsForFile(fileIndex) {
                 const fileData = TranslatorApp.state.translatedJsonData[fileIndex].data;
                 const createEditor = (path, initialContent) => {
                     const editorId = `editor-${fileIndex}-${path.replace(/\./g, '-')}`;
                     const editorDiv = document.getElementById(editorId);
                     if (!editorDiv) return;
+                    
                     const quill = new Quill(editorDiv, { theme: 'snow', modules: { toolbar: [['bold','italic','underline'],[{ 'list': 'ordered' }, { 'list': 'bullet' }]] } });
                     const safeInitial = TranslatorApp.security.sanitize(initialContent || '');
                     quill.clipboard.dangerouslyPasteHTML(safeInitial);
-                    quill.on('text-change', () => {
-                        const dirty = quill.root.innerHTML || '';
-                        const safe = TranslatorApp.security.sanitize(dirty);
-                        this.updateData(fileIndex, path, safe);
+                    
+                    quill.on('text-change', (delta, oldDelta, source) => {
+                        if (source === 'user') {
+                            const dirty = quill.root.innerHTML || '';
+                            const safe = TranslatorApp.security.sanitize(dirty);
+                            this.updateData(fileIndex, path, safe);
+                            this.updateDiff(fileIndex, path);
+                            const statusEl = document.getElementById(`status-${editorId}`);
+                            if(statusEl) {
+                                statusEl.className = 'status-dot status-edited';
+                                statusEl.title = 'تم التعديل يدوياً';
+                            }
+                        }
                     });
                     this.editorInstances.set(editorId, quill);
                 };
@@ -1695,6 +1749,7 @@
                     part.choices?.forEach((choice, choiceIndex) => createEditor(`parts.${partIndex}.choices.${choiceIndex}.html_content`, choice.html_content));
                 });
             },
+
             updateData(fileIndex, path, value) {
                 const keys = path.split('.');
                 let current = TranslatorApp.state.translatedJsonData[fileIndex].data;
@@ -1703,49 +1758,77 @@
                 TranslatorApp.history.push(TranslatorApp.state.translatedJsonData);
                 TranslatorApp.state.hasUnsavedChanges = true;
             },
+
+            generateInitialDiffs(fileIndex) {
+                const originalData = TranslatorApp.state.originalJsonData[fileIndex].data;
+                const translatedData = TranslatorApp.state.translatedJsonData[fileIndex].data;
+                const processPath = (path, original, translated) => {
+                    if (original === undefined || original === null) return;
+                    this.updateDiff(fileIndex, path);
+                };
+                processPath('statement', originalData.statement, translatedData.statement);
+                originalData.parts?.forEach((part, partIndex) => {
+                    processPath(`parts.${partIndex}.stem`, part.stem, translatedData.parts[partIndex].stem);
+                    processPath(`parts.${partIndex}.answer`, part.answer, translatedData.parts[partIndex].answer);
+                    part.choices?.forEach((choice, choiceIndex) => {
+                        processPath(`parts.${partIndex}.choices.${choiceIndex}.html_content`, choice.html_content, translatedData.parts[partIndex].choices[choiceIndex].html_content);
+                    });
+                });
+            },
+
+            updateDiff(fileIndex, path) {
+                const editorId = `editor-${fileIndex}-${path.replace(/\./g, '-')}`;
+                const diffId = `diff-${editorId}`;
+                const diffContainer = document.getElementById(diffId);
+                if (!diffContainer) return;
+
+                const keys = path.split('.');
+                let originalText = TranslatorApp.state.originalJsonData[fileIndex].data;
+                let translatedText = TranslatorApp.state.translatedJsonData[fileIndex].data;
+                for (let i = 0; i < keys.length; i++) {
+                    originalText = originalText ? originalText[keys[i]] : '';
+                    translatedText = translatedText ? translatedText[keys[i]] : '';
+                }
+                
+                const cleanOriginal = this.plainTextForDiff(originalText || '');
+                const cleanTranslated = this.plainTextForDiff(translatedText || '');
+                
+                diffContainer.innerHTML = this.createDiffHtml(cleanOriginal, cleanTranslated);
+            },
+
+            createDiffHtml(text1, text2) {
+                const d = this.dmp.diff_main(text1, text2);
+                this.dmp.diff_cleanupSemantic(d);
+                return this.dmp.diff_prettyHtml(d);
+            },
+            
+            plainTextForDiff(html) {
+                const div = document.createElement('div');
+                div.innerHTML = html;
+                return div.textContent || div.innerText || '';
+            },
+
+            copyOriginalText(button) {
+                const fieldContainer = button.closest('.grid').querySelector('.original-text-readonly');
+                if (fieldContainer) {
+                    navigator.clipboard.writeText(fieldContainer.innerText).then(() => {
+                        TranslatorApp.ui.showAlert('تم نسخ النص الأصلي!', 'success', 2000);
+                    });
+                }
+            },
+
             filter() {
                 const term = TranslatorApp.dom.searchPreview.value.toLowerCase();
-                const cards = document.querySelectorAll('.preview-card');
-                cards.forEach(card => {
-                    const content = card.textContent.toLowerCase();
+                const accordions = document.querySelectorAll('#previewContainer > div');
+                accordions.forEach(accordion => {
+                    const content = accordion.textContent.toLowerCase();
                     const isVisible = content.includes(term);
-                    card.style.display = isVisible ? '' : 'none';
-                    const original = card.querySelector('.original-content');
-                    this.clearHighlight(original);
-                    if (isVisible && term && original) this.highlightInNode(original, term);
+                    accordion.style.display = isVisible ? '' : 'none';
                 });
-            },
-            highlightInNode(root, term) {
-                if (!root) return;
-                const regex = new RegExp(`(${this.escapeRegex(term)})`, 'gi');
-                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-                    acceptNode: (node) => {
-                        if (!node.parentElement) return NodeFilter.FILTER_REJECT;
-                        if (node.parentElement.closest('.ql-editor')) return NodeFilter.FILTER_REJECT;
-                        if (['SCRIPT','STYLE'].includes(node.parentElement.nodeName)) return NodeFilter.FILTER_REJECT;
-                        return NodeFilter.FILTER_ACCEPT;
-                    }
-                });
-                const nodes = [];
-                while (walker.nextNode()) nodes.push(walker.currentNode);
-                nodes.forEach(n => {
-                    const txt = n.textContent;
-                    if (txt && txt.toLowerCase().includes(term)) {
-                        const span = document.createElement('span');
-                        span.innerHTML = txt.replace(regex, `<mark class="search-highlight">$1</mark>`);
-                        n.parentNode.replaceChild(span, n);
-                    }
-                });
-            },
-            clearHighlight(root) {
-                if (!root) return;
-                const highlights = root.querySelectorAll('mark.search-highlight');
-                highlights.forEach(hl => { const parent = hl.parentNode; parent.replaceChild(document.createTextNode(hl.textContent), hl); parent.normalize(); });
-            },
-            escapeRegex(s) { return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); }
+            }
         },
-export: {
-            async exportAs(format) {
+        export: {
+            exportAs(format) {
                 return (format === 'csv') ? this.toCsv() : this.toJson();
             },
             async toJson() {
@@ -1756,9 +1839,7 @@ export: {
                 if (useMappedIds) {
                     try {
                         mappedIds = JSON.parse(TranslatorApp.dom.mappedIdsInput.value);
-                        if (!Array.isArray(mappedIds)) {
-                            throw new Error('not array');
-                        }
+                        if (!Array.isArray(mappedIds)) throw new Error('not array');
                     } catch {
                         return TranslatorApp.ui.showAlert('قائمة المعرفات (mapped_id) غير صالحة. يرجى التأكد من أنها مصفوفة JSON صحيحة.', 'error');
                     }
@@ -1770,45 +1851,17 @@ export: {
                     const originalFile = TranslatorApp.state.originalJsonData.find(f => f.name === file.name);
                     const finalData = JSON.parse(JSON.stringify(originalFile.data));
 
-                    // A helper function to change the direction attribute and handle other HTML adjustments
-                    const processHtmlContent = (html) => {
-                        if (typeof html !== 'string') {
-                            return html;
-                        }
-                        // Replace dir="ltr" with dir="rtl"
-                        let processed = html.replace(/dir="ltr"/g, 'dir="rtl"');
-                        // Ensure all <p> tags have the Lexical class and RTL direction
-                        // This handles cases where the class or dir attribute might be missing
-                        processed = processed.replace(/<p(.*?)>/g, (match, p1) => {
-                            if (!p1.includes('LexicalTheme__paragraph')) {
-                                p1 = ` class="LexicalTheme__paragraph"${p1}`;
-                            }
-                            if (!p1.includes('dir="rtl"')) {
-                                p1 = ` dir="rtl"${p1}`;
-                            }
-                            return `<p${p1}>`;
-                        });
-                        return processed;
-                    };
-                    
-                    // Update the actual content with the translated text and enforce RTL direction
-                    const updateField = (original, translated) => {
-                        const updatedText = (translated !== undefined ? translated : original);
-                        return processHtmlContent(updatedText);
-                    };
-
-                    // First, update the content fields with the translated text and RTL direction
-                    finalData.statement = updateField(originalFile.data.statement, file.data.statement);
+                    finalData.statement = file.data.statement;
                     if (finalData.parts) {
                         finalData.parts.forEach((part, partIndex) => {
                             const translatedPart = file.data.parts[partIndex];
                             if (translatedPart) {
-                                part.stem = updateField(part.stem, translatedPart.stem);
-                                part.answer = updateField(part.answer, translatedPart.answer);
+                                part.stem = translatedPart.stem;
+                                part.answer = translatedPart.answer;
                                 if (part.choices) {
                                     part.choices.forEach((choice, choiceIndex) => {
                                         if (translatedPart.choices && translatedPart.choices[choiceIndex]) {
-                                            choice.html_content = updateField(choice.html_content, translatedPart.choices[choiceIndex].html_content);
+                                            choice.html_content = translatedPart.choices[choiceIndex].html_content;
                                         }
                                     });
                                 }
@@ -1816,39 +1869,24 @@ export: {
                         });
                     }
 
-                    // A helper function to strip HTML tags
-                    const stripHtml = (html) => {
-                        if (typeof html !== 'string') return '';
-                        const doc = new DOMParser().parseFromString(html, 'text/html');
-                        return doc.body.textContent || "";
-                    };
-
-                    // Now, update the metadata fields using the *already updated* content
                     finalData.metadata = finalData.metadata || {};
                     finalData.metadata.title = "";
                     finalData.metadata.language = 'ar';
                     finalData.metadata.dialect = ['modern_standard'];
                     finalData.metadata.country = 'eg';
                     finalData.metadata.source_id = null;
-                    
-                    let description = '';
-                    const translatedStatement = finalData.statement;
-                    const translatedStem = finalData.parts?.[0]?.stem;
 
-                    const cleanStatement = translatedStatement ? stripHtml(translatedStatement) : '';
-                    const cleanStem = translatedStem ? stripHtml(translatedStem) : '';
-
-                    if (cleanStatement && cleanStem) {
-                        description = cleanStatement + ' ' + cleanStem;
-                    } else if (cleanStatement) {
-                        description = cleanStatement;
-                    } else if (cleanStem) {
-                        description = cleanStem;
-                    }
+                    const stripHtml = (html) => {
+                        if (!html) return "";
+                        const doc = new DOMParser().parseFromString(html, 'text/html');
+                        return doc.body.textContent || "";
+                    };
                     
+                    const cleanStatement = stripHtml(finalData.statement);
+                    const cleanStem = finalData.parts?.[0]?.stem ? stripHtml(finalData.parts[0].stem) : '';
+                    let description = (cleanStatement + ' ' + cleanStem).trim();
                     finalData.metadata.description = description;
 
-                    // Update mapped_id and filename
                     let fileNameToUse = file.name;
                     if (useMappedIds && idCounter < mappedIds.length) {
                         const newMappedId = mappedIds[idCounter];
@@ -1856,7 +1894,6 @@ export: {
                         fileNameToUse = `${newMappedId}.json`;
                         idCounter++;
                     } else {
-                         // If not using the mapped_ids list, make sure mapped_id is the same as id
                          finalData.metadata.mapped_id = finalData.metadata.id;
                     }
                     
@@ -1878,7 +1915,8 @@ export: {
                     TranslatorApp.ui.showAlert('تم إنشاء ملف ZIP بنجاح!', 'success');
                 } catch (e) {
                     console.error(e);
-                    TranslatorApp.ui.showAlert('فشل إنشاء ملف ZIP.', 'error');},
+                    TranslatorApp.ui.showAlert('فشل إنشاء ملف ZIP.', 'error');}
+            },
             async toCsv() {
                 let csv = '\uFEFFFileName,PartIndex,Type,OriginalText,TranslatedText\r\n';
                 TranslatorApp.state.originalJsonData.forEach((originalFile, fileIndex) => {
